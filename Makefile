@@ -13,7 +13,7 @@ test:
 	pytest
 
 ingest:
-	@echo "make ingest: added in Phase 2 (LlamaIndex knowledge-base ingestion)"
+	python -m app.knowledge.ingest
 
 eval:
 	@echo "make eval: added in Phase 6 (golden Q&A evaluation)"

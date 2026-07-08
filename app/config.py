@@ -20,5 +20,18 @@ class Settings(BaseSettings):
 
     sqs_lab_result_queue_name: str = "lab-result-created"
 
+    # Knowledge base (Phase 2)
+    vector_store_backend: str = "chroma"  # "chroma" | "atlas"
+    chroma_persist_dir: str = "./data/chroma"
+    chroma_collection_name: str = "medai_knowledge_base"
+
+    atlas_mongo_uri: str | None = None
+    atlas_db_name: str = "medai"
+    atlas_collection_name: str = "knowledge_base"
+    atlas_vector_index_name: str = "vector_index"
+
+    embedding_backend: str = "fastembed"  # "fastembed" | "fake"
+    fastembed_model_name: str = "BAAI/bge-small-en-v1.5"
+
 
 settings = Settings()

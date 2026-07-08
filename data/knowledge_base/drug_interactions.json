@@ -1,0 +1,50 @@
+[
+  {
+    "drug_a": "Warfarin",
+    "drug_b": "Aspirin",
+    "severity": "major",
+    "description": "Concurrent use significantly increases the risk of bleeding, including gastrointestinal and intracranial hemorrhage. Avoid combination unless benefit clearly outweighs risk; monitor INR closely if co-administered."
+  },
+  {
+    "drug_a": "Warfarin",
+    "drug_b": "Amiodarone",
+    "severity": "major",
+    "description": "Amiodarone inhibits warfarin metabolism, raising INR and bleeding risk. Reduce warfarin dose by roughly one-third to one-half when starting amiodarone and monitor INR frequently."
+  },
+  {
+    "drug_a": "Lisinopril",
+    "drug_b": "Potassium chloride",
+    "severity": "moderate",
+    "description": "ACE inhibitors reduce potassium excretion; combining with potassium supplements can cause hyperkalemia. Monitor serum potassium periodically."
+  },
+  {
+    "drug_a": "Metformin",
+    "drug_b": "Contrast media (iodinated)",
+    "severity": "major",
+    "description": "Iodinated contrast can impair renal function, increasing the risk of metformin-associated lactic acidosis. Hold metformin before and for 48 hours after contrast administration in patients with reduced renal function."
+  },
+  {
+    "drug_a": "Simvastatin",
+    "drug_b": "Clarithromycin",
+    "severity": "major",
+    "description": "Clarithromycin strongly inhibits CYP3A4 metabolism of simvastatin, raising myopathy and rhabdomyolysis risk. Avoid combination; suspend simvastatin during clarithromycin therapy."
+  },
+  {
+    "drug_a": "Sertraline",
+    "drug_b": "Tramadol",
+    "severity": "major",
+    "description": "Combination increases serotonin syndrome risk due to additive serotonergic effects. Use only with caution and close monitoring for agitation, hyperthermia, and clonus."
+  },
+  {
+    "drug_a": "Spironolactone",
+    "drug_b": "Lisinopril",
+    "severity": "moderate",
+    "description": "Both agents raise serum potassium; combined use increases hyperkalemia risk, particularly with renal impairment. Monitor potassium and renal function."
+  },
+  {
+    "drug_a": "Digoxin",
+    "drug_b": "Furosemide",
+    "severity": "moderate",
+    "description": "Furosemide-induced hypokalemia increases the risk of digoxin toxicity. Monitor serum potassium and digoxin levels, particularly after diuretic dose changes."
+  }
+]
