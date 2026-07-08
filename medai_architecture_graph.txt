@@ -1,0 +1,90 @@
+MedAI — Clinical Lab Intelligence & Care Coordination Platform
+Architecture / Event-Flow Graph
+================================================================
+
+┌─────────────┐   ingest    ┌───────────────┐
+│ Lab API      │───────────▶│ Ingestion svc  │──▶ MongoDB (raw lab results)
+└─────────────┘             └───────────────┘
+   (Phase 1 — direct rewrite of the old Symfony ingestion step)
+                                    │ publish event
+                                    ▼
+                              AWS SQS  (lab_result_created)
+                            [LocalStack locally]
+                                    │
+                                    ▼
+                     ┌───────────────────────────────┐
+                     │ Recommendation worker           │   (Phase 3 — LangChain)
+                     │ (LangChain chain)                │
+                     │  1. fetch lab result               │
+                     │  2. query LlamaIndex query engine    │──▶ VectorStore (protocol)
+                     │     (guidelines / ref ranges / drug   │     - ChromaStore (default)
+                     │      interaction dict)                 │     - AtlasVectorStore (env)
+                     │  3. Bedrock LLM call w/ retrieved ctx   │──▶ LLM (protocol)
+                     │  4. write draft + citations to Mongo      │     - Bedrock (default)
+                     │     status = pending_review                │     - FakeLLM (tests)
+                     └───────────────────────────────┘
+                                    │
+                                    ▼
+                     ┌───────────────────────────────┐
+                     │ Approval graph                   │   (Phase 4 — LangGraph)
+                     │ (LangGraph, checkpointed state)    │
+                     │                                      │
+                     │  draft_ready                          │
+                     │      │                                 │
+                     │      ▼                                  │
+                     │  interrupt()  ──────▶ Clinician review UI
+                     │  (awaits human,                          │  POST /reviews/{id}/
+                     │   survives restart)                       │   approve | edit | reject
+                     │      │
+                     │      ▼
+                     │  approved / edited / rejected
+                     │      │
+                     │      ▼
+                     │  notify_patient ──▶ MongoDB (recommendation, status=final)
+                     │                  ──▶ Audit log (who/what/why)
+                     └───────────────────────────────┘
+
+────────────────────────────────────────────────────────────────
+
+                     ┌───────────────────────────────┐
+                     │ Chat / appointment agent          │  (Phase 5 — LangGraph agent)
+                     │ (LangGraph, tool-calling,           │
+                     │  per-patient conversation memory)     │
+                     │                                          │
+                     │  tools:                                    │
+                     │   - check_availability(doctor, range)       │──▶ Scheduling backend
+                     │   - book_appointment(...)                     │
+                     │   - reschedule_appointment(...)                │
+                     │   - cancel_appointment(...)                     │
+                     │   - get_patient_lab_history(patient_id)          │──▶ LlamaIndex query
+                     │        (grounded, cited)                            engine (shared
+                     │   - escalate_to_oncall(reason)                       with Phase 3)
+                     │                                             │
+                     │  guardrails:                                 │
+                     │   - never emit a diagnosis                     │
+                     │   - always cite guideline content                │
+                     │   - red-flag lab value → escalate, don't answer   │
+                     └───────────────────────────────┘
+                                    ▲
+                                    │  FastAPI /chat
+                             Patient / clinician client
+
+────────────────────────────────────────────────────────────────
+
+Cross-cutting (Phase 6–7):
+  - Evaluation: golden Q&A set → citation-presence + faithfulness checks (`make eval`)
+  - Red-flag test cases → must trigger escalate_to_oncall, never a plain answer
+  - Observability: per-request token/cost tracking, latency tracing
+  - PHI-safe structured logging (redaction) across every service
+  - Full audit log: every AI-authored write (draft, approval action, booked appointment)
+
+Optional (Phase 8):
+  - Chat agent split into a supervisor pattern:
+      intake_agent -> retrieval_agent -> scheduling_agent -> compliance_agent
+    each a LangGraph node, once the single-agent version is proven solid.
+
+────────────────────────────────────────────────────────────────
+Division of labor (why each tool is used where):
+  LlamaIndex   -> knowledge base ingestion + retrieval only
+  LangChain    -> single-shot retrieve -> prompt -> generate (no branching/state)
+  LangGraph    -> anything stateful/branching: approval workflow, tool-calling agent
