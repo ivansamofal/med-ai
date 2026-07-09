@@ -18,6 +18,8 @@ dependencies = [
     "llama-index-vector-stores-mongodb>=0.2",
     "fastembed>=0.4",
     "chromadb>=0.5",
+    "langchain-core>=0.3",
+    "langchain-aws>=0.2",
 ]
 
 [project.optional-dependencies]

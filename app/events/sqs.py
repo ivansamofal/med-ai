@@ -25,7 +25,7 @@ def get_sqs_client():
     return _client
 
 
-def _resolve_queue_url() -> str:
+def resolve_queue_url() -> str:
     """Look up the queue URL, creating the queue if we're pointed at LocalStack.
 
     Real AWS environments are expected to provision the queue out-of-band (e.g.
@@ -48,7 +48,7 @@ def _resolve_queue_url() -> str:
 
 def _publish_sync(event: dict[str, Any]) -> str:
     client = get_sqs_client()
-    queue_url = _resolve_queue_url()
+    queue_url = resolve_queue_url()
     response = client.send_message(QueueUrl=queue_url, MessageBody=json.dumps(event))
     return response["MessageId"]
 

@@ -1,3 +1,5 @@
+import uuid
+
 import chromadb
 import pytest
 from llama_index.core import StorageContext, VectorStoreIndex
@@ -29,7 +31,9 @@ def test_index():
         ),
     ]
     client = chromadb.EphemeralClient()
-    collection = client.get_or_create_collection("test_knowledge_base")
+    # chromadb's EphemeralClient shares an in-process store across instances
+    # for a given collection name, so tests need a unique name to stay isolated.
+    collection = client.get_or_create_collection(f"test_knowledge_base_{uuid.uuid4().hex}")
     vector_store = ChromaVectorStore(chroma_collection=collection)
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
     return VectorStoreIndex(nodes=nodes, storage_context=storage_context, embed_model=FakeEmbedding())

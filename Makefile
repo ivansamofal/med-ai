@@ -1,4 +1,4 @@
-.PHONY: up down test ingest eval run
+.PHONY: up down test ingest eval run worker
 
 up:
 	docker compose up -d
@@ -8,6 +8,9 @@ down:
 
 run:
 	uvicorn app.main:app --reload
+
+worker:
+	python -m app.workers.recommendation_worker
 
 test:
 	pytest

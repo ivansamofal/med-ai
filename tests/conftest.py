@@ -19,6 +19,7 @@ async def clean_mongo():
     yield
     db = get_client()[settings.mongo_db_name]
     await db["lab_results"].delete_many({})
+    await db["recommendations"].delete_many({})
 
 
 @pytest.fixture(autouse=True)

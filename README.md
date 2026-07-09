@@ -117,3 +117,75 @@ LlamaIndex owns ingestion + retrieval only — no LLM synthesis here, that's Pha
 make ingest      # builds/refreshes the Chroma index from data/knowledge_base/
 make test         # includes tests/test_chunking.py, tests/test_query_engine.py, tests/test_vector_store.py
 ```
+
+`build_guideline_nodes` (SentenceSplitter, chunk_size=256/overlap=32) and
+`query_knowledge_base` (retriever + `MetadataFilters`/`FilterOperator.IN` on
+`source_type`) are both implemented — all 8 Phase 2 tests pass.
+
+## Phase 3 — Recommendation chain (LangChain)
+
+Single-shot retrieve → prompt → generate, no branching/state (Phase 4 adds
+that on top). Built as a real LangChain LCEL pipeline —
+`ChatPromptTemplate | chat_model | PydanticOutputParser` — not hand-rolled
+function composition.
+
+**What was built:**
+
+- `app/llm/interface.py` — `get_chat_model()` returns a LangChain
+  `BaseChatModel`: `ChatBedrockConverse` (Claude on Bedrock) for the real
+  backend, `FakeListChatModel` (LangChain's own deterministic test double) by
+  default — same real/fake split as Embedding/VectorStore. Default is `fake`
+  (zero API keys out of the box); switch to your own AWS access with
+  `LLM_BACKEND=bedrock`. Bedrock has no LocalStack equivalent, so it always
+  calls real AWS.
+- `app/domain/recommendation.py` — `Recommendation` document schema
+  (`status` starts at `pending_review`).
+- `app/db/mongo.py` — `LabResultRepository.get_by_id`, new
+  `RecommendationRepository`.
+- `app/recommendations/parser.py` — `ParsedRecommendation` (pydantic) +
+  `get_output_parser()`, a LangChain `PydanticOutputParser`. Its
+  `get_format_instructions()` is embedded in the prompt so every backend —
+  real or fake — is told the exact JSON schema to produce; parsing and
+  validation are one call, no regex.
+- `app/recommendations/chain.py` — `generate_recommendation(lab_result_id)`:
+  fetch → retrieve → build the LCEL chain
+  (`ChatPromptTemplate.from_messages(...) | get_chat_model() | output_parser`)
+  → `ainvoke` → persist. The prompt TODO supplies the human-message content;
+  the chain wires the LangChain plumbing (template, model, parser) around it.
+- `app/workers/recommendation_worker.py` — long-polls
+  `lab_result_created` off SQS and runs the chain per message; failed
+  messages are left undeleted so SQS's visibility timeout redelivers them
+  (retry/backoff hardening is Phase 7). `make worker` runs it.
+
+**Your TODOs (2, both with failing tests):**
+
+- `app/recommendations/retrieval.py::build_context_passages` — the
+  retrieval strategy: what query string (and optional `source_types`) to
+  call `query_knowledge_base` with for a given lab result. Tests in
+  `tests/test_retrieval.py`.
+- `app/recommendations/prompt.py::build_recommendation_prompt` — the
+  recommendation prompt template: how to present the lab result + retrieved
+  passages, and what safety framing to include. Tests in `tests/test_prompt.py`.
+
+**Key decisions:**
+
+- Structured output via `PydanticOutputParser` instead of a fixed text format
+  + regex — the schema is defined once (`ParsedRecommendation`) and every
+  backend is told to conform to it via `get_format_instructions()`; your two
+  TODOs (retrieval strategy, prompt content) never have to agree on a text
+  format between themselves.
+- `FakeListChatModel` returns canned JSON matching that schema, so
+  `tests/test_chain.py` exercises the real parser, the real LCEL chain, and
+  the real Mongo write path end-to-end without a model call — only
+  `build_context_passages`/`build_recommendation_prompt` are monkeypatched
+  there, since those are your still-open TODOs.
+- Drug-interaction/reference-range passages aren't force-included for every
+  lab result — that's part of the retrieval-strategy TODO's judgment call.
+
+**How to run:**
+
+```bash
+make up          # mongodb + localstack, if not already running
+make worker       # long-polls lab_result_created and runs the chain
+make test         # includes tests/test_parser.py, test_retrieval.py, test_prompt.py, test_chain.py
+```

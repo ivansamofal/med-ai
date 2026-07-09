@@ -4,7 +4,7 @@ from bson import ObjectId
 
 from app.config import settings
 from app.db.mongo import get_client
-from app.events.sqs import _resolve_queue_url, get_sqs_client
+from app.events.sqs import resolve_queue_url, get_sqs_client
 
 
 async def test_ingest_lab_result_returns_normalized_response(client, sample_raw_lab_result):
@@ -36,7 +36,7 @@ async def test_ingest_lab_result_publishes_event_to_sqs(client, sample_raw_lab_r
     lab_result_id = response.json()["id"]
 
     sqs = get_sqs_client()
-    queue_url = _resolve_queue_url()
+    queue_url = resolve_queue_url()
     received = sqs.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2, MaxNumberOfMessages=1)
 
     messages = received.get("Messages", [])

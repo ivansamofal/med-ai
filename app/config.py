@@ -33,5 +33,10 @@ class Settings(BaseSettings):
     embedding_backend: str = "fastembed"  # "fastembed" | "fake"
     fastembed_model_name: str = "BAAI/bge-small-en-v1.5"
 
+    # Recommendation chain (Phase 3)
+    llm_backend: str = "fake"  # "fake" | "bedrock" — real Bedrock needs your own AWS access
+    bedrock_model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    bedrock_max_tokens: int = 1024
+
 
 settings = Settings()

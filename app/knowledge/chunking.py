@@ -30,4 +30,7 @@ def build_guideline_nodes(documents: list[Document]) -> list[TextNode]:
       starting point for clinical guideline prose; there's no single right
       answer, tune against the failing test and your own judgment.
     """
-    raise NotImplementedError("TODO(phase-2): implement build_guideline_nodes chunking")
+    from llama_index.core.node_parser import SentenceSplitter
+
+    splitter = SentenceSplitter(chunk_size=256, chunk_overlap=32)
+    return splitter.get_nodes_from_documents(documents)

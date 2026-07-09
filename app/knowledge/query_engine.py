@@ -51,4 +51,30 @@ def query_knowledge_base(
     - Each retrieved `NodeWithScore` has `.node.metadata["source_title"]` /
       `["source_type"]` and a `.score` — that's your `RetrievedPassage`.
     """
-    raise NotImplementedError("TODO(phase-2): implement query_knowledge_base retrieval")
+    from llama_index.core.vector_stores import (
+        FilterOperator,
+        MetadataFilter,
+        MetadataFilters,
+    )
+
+    filters = None
+    if source_types:
+        filters = MetadataFilters(
+            filters=[
+                MetadataFilter(key="source_type", value=source_types, operator=FilterOperator.IN)
+            ]
+        )
+
+    resolved_index = index if index is not None else get_index()
+    retriever = resolved_index.as_retriever(similarity_top_k=top_k, filters=filters)
+    nodes = retriever.retrieve(question)
+
+    return [
+        RetrievedPassage(
+            text=node.node.get_content(),
+            source_title=node.node.metadata.get("source_title", "unknown"),
+            source_type=node.node.metadata.get("source_type", "unknown"),
+            score=node.score if node.score is not None else 0.0,
+        )
+        for node in nodes
+    ]
