@@ -157,15 +157,29 @@ function composition.
   messages are left undeleted so SQS's visibility timeout redelivers them
   (retry/backoff hardening is Phase 7). `make worker` runs it.
 
-**Your TODOs (2, both with failing tests):**
+**TODOs (both implemented):**
 
-- `app/recommendations/retrieval.py::build_context_passages` — the
-  retrieval strategy: what query string (and optional `source_types`) to
-  call `query_knowledge_base` with for a given lab result. Tests in
-  `tests/test_retrieval.py`.
-- `app/recommendations/prompt.py::build_recommendation_prompt` — the
-  recommendation prompt template: how to present the lab result + retrieved
-  passages, and what safety framing to include. Tests in `tests/test_prompt.py`.
+- `app/recommendations/retrieval.py::build_context_passages` — builds a
+  query string from the lab result's test name/value/unit/reference range;
+  always includes `guideline` + `reference_range` passages, and adds
+  `drug_interaction` only when the result is flagged abnormal.
+- `app/recommendations/prompt.py::build_recommendation_prompt` — states the
+  lab result plainly, lists each retrieved passage with its citation title,
+  and instructs the model to draft-only/no-diagnosis/cite-everything.
+
+**Two real bugs found and fixed while getting `make test` green against live
+infra (not just isolated unit tests):**
+
+- Motor's `AsyncIOMotorClient` is bound to the event loop it was created on;
+  pytest-asyncio gives each test function its own loop, so the module-level
+  cached client from one test broke every later test with "Event loop is
+  closed." Fixed by closing the cached client in the `clean_mongo` fixture's
+  teardown, forcing a fresh client (and loop binding) per test.
+- Standard SQS queues don't guarantee delivery order, and LocalStack persists
+  messages across runs — a leftover message from an earlier test picked up by
+  `test_ingest_lab_result_publishes_event_to_sqs`'s `receive_message` caused
+  an intermittent assertion failure. Fixed by draining the queue before *and*
+  after every test.
 
 **Key decisions:**
 
@@ -176,9 +190,10 @@ function composition.
   format between themselves.
 - `FakeListChatModel` returns canned JSON matching that schema, so
   `tests/test_chain.py` exercises the real parser, the real LCEL chain, and
-  the real Mongo write path end-to-end without a model call — only
+  the real Mongo write path end-to-end without a model call —
   `build_context_passages`/`build_recommendation_prompt` are monkeypatched
-  there, since those are your still-open TODOs.
+  there instead, so the chain-orchestration test doesn't depend on retrieval
+  quality or exact prompt wording.
 - Drug-interaction/reference-range passages aren't force-included for every
   lab result — that's part of the retrieval-strategy TODO's judgment call.
 

@@ -37,4 +37,19 @@ def build_context_passages(
     - `index` is passed straight through to `query_knowledge_base` — it exists
       so tests can inject a small fixture index instead of the real one.
     """
-    raise NotImplementedError("TODO(phase-3): implement build_context_passages retrieval strategy")
+    direction = "abnormal" if lab_result.is_abnormal else "normal"
+    query = (
+        f"{lab_result.test_name} ({lab_result.test_code}) result of "
+        f"{lab_result.value} {lab_result.unit}, a {direction} value, reference "
+        f"range {lab_result.reference_range.low}-{lab_result.reference_range.high} "
+        f"{lab_result.unit}"
+    )
+
+    source_types = ["guideline", "reference_range"]
+    if lab_result.is_abnormal:
+        # Only pull drug-interaction passages when something is actually
+        # abnormal — otherwise they're noise competing with the guideline/
+        # reference-range passages that matter for a normal result.
+        source_types.append("drug_interaction")
+
+    return query_knowledge_base(query, top_k=top_k, source_types=source_types, index=index)

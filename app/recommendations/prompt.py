@@ -32,4 +32,35 @@ def build_recommendation_prompt(lab_result: LabResult, passages: list[RetrievedP
       reaches a patient (Phase 4) — the prompt should read like it's producing
       a *draft* for a clinician, not a final answer.
     """
-    raise NotImplementedError("TODO(phase-3): implement build_recommendation_prompt")
+    abnormal_note = "This value IS flagged abnormal." if lab_result.is_abnormal else "This value is within range."
+
+    lines = [
+        "You are drafting a recommendation for a clinician to review before it "
+        "reaches a patient. This is a draft, not a final answer — the clinician "
+        "may approve, edit, or reject it.",
+        "",
+        "Lab result:",
+        f"- Test: {lab_result.test_name} ({lab_result.test_code})",
+        f"- Value: {lab_result.value} {lab_result.unit}",
+        f"- Reference range: {lab_result.reference_range.low}-{lab_result.reference_range.high} {lab_result.unit}",
+        f"- {abnormal_note}",
+        "",
+    ]
+
+    if passages:
+        lines.append("Reference passages (use only these, cite each one you rely on by its title):")
+        for passage in passages:
+            lines.append(f"- [{passage.source_title}] {passage.text}")
+        lines.append("")
+    else:
+        lines.append("No reference passages were retrieved for this result.")
+        lines.append("")
+
+    lines.append(
+        "Write a short recommendation for the clinician based only on the "
+        "information above. Do not provide a diagnosis. Do not use any "
+        "outside medical knowledge beyond what's stated in the reference "
+        "passages. Cite every passage you rely on by its title."
+    )
+
+    return "\n".join(lines)
