@@ -59,3 +59,10 @@ class RecommendationRepository:
         document = recommendation.model_dump()
         result = await self._collection.insert_one(document)
         return str(result.inserted_id)
+
+    async def get_by_id(self, recommendation_id: str) -> Recommendation:
+        document = await self._collection.find_one({"_id": ObjectId(recommendation_id)})
+        if document is None:
+            raise ValueError(f"No recommendation found for id={recommendation_id}")
+        document.pop("_id")
+        return Recommendation(**document)

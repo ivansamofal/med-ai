@@ -1,12 +1,15 @@
-"""SQS consumer: picks up `lab_result_created` events and runs the
-recommendation chain for each one. Long-polls forever by default; retry/
-backoff on failure is Phase 7 — for now a failed message is simply left
-un-deleted so SQS's visibility timeout redelivers it.
+"""SQS consumer: picks up `lab_result_created` events, runs the
+recommendation chain, then hands the draft to the approval graph so it's
+held for clinician review before it can reach a patient. Long-polls forever
+by default; retry/backoff on failure is Phase 7 — for now a failed message is
+simply left un-deleted so SQS's visibility timeout redelivers it.
 """
 
 import asyncio
 import json
 
+from app.approval.service import start_review
+from app.db.mongo import RecommendationRepository, get_database
 from app.events.sqs import get_sqs_client, resolve_queue_url
 from app.logging import get_logger
 from app.recommendations.chain import generate_recommendation
@@ -18,6 +21,16 @@ async def _handle_message(message: dict) -> None:
     event = json.loads(message["Body"])
     lab_result_id = event["lab_result_id"]
     recommendation_id = await generate_recommendation(lab_result_id)
+
+    recommendation = await RecommendationRepository(get_database()).get_by_id(recommendation_id)
+    await asyncio.to_thread(
+        start_review,
+        recommendation_id,
+        recommendation.patient_id,
+        recommendation.recommendation_text,
+        recommendation.citations,
+    )
+
     logger.info(
         "recommendation_generated",
         lab_result_id=lab_result_id,
