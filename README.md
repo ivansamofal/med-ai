@@ -204,3 +204,74 @@ make up          # mongodb + localstack, if not already running
 make worker       # long-polls lab_result_created and runs the chain
 make test         # includes tests/test_parser.py, test_retrieval.py, test_prompt.py, test_chain.py
 ```
+
+## Phase 4 — Approval graph (LangGraph)
+
+Every AI-authored recommendation is held behind clinician review before it
+can reach a patient — this is the first stateful/branching piece in the
+system, so it's LangGraph, not LangChain.
+
+**What was built:**
+
+- `app/approval/graph.py` — `ApprovalState` (TypedDict); `draft_ready` and
+  `await_clinician` nodes (the latter calls `interrupt()` to pause, checkpointed
+  via `MongoDBSaver` so a pending approval survives a process restart — verified
+  by hand: dropped the in-process compiled graph object mid-review and resumed
+  a fresh one from Mongo state alone); helper functions `finalize_recommendation`,
+  `write_audit_log`, `notify_patient_of_recommendation`.
+- `app/domain/audit_log.py` — `AuditLogEntry` (recommendation_id, action,
+  actor, reason, timestamp).
+- `app/db/sync_mongo.py` — sync pymongo client/database, separate from the
+  async Motor client the rest of the app uses. LangGraph (and `MongoDBSaver`)
+  has no async Mongo checkpointer yet, so the graph runs as a sync unit,
+  wrapped in `asyncio.to_thread` at the FastAPI boundary — same pattern as
+  the sync boto3 SQS client elsewhere.
+- `app/approval/service.py` — `start_review()`/`resume_review()`, the sync
+  entry points the async app calls into.
+- `app/api/routes/reviews.py` — `POST /reviews/{id}/approve|edit|reject`,
+  each resuming the graph via `Command(resume=...)`.
+- `app/workers/recommendation_worker.py` — after generating a draft, now
+  also calls `start_review()` so every draft is immediately held for review.
+  Wired into the worker, not `chain.py`, so Phase 3's tests stay independent
+  of Phase 4's graph.
+
+**TODO (implemented):**
+
+- `app/approval/graph.py::build_approval_graph` — the one substantial TODO
+  this phase (matching the project spec's own named example): wires
+  `draft_ready -> await_clinician -> [conditional routing]`. Implemented as
+  two terminal nodes — `notify_patient` for approved/edited (finalizes,
+  audit-logs, and actually notifies the patient) and `record_rejection` for
+  rejected (finalizes and audit-logs, but does *not* call
+  `notify_patient_of_recommendation` — nothing should be sent to a patient
+  for a draft a clinician rejected). Only one TODO this phase, not 2-4 — the
+  design surface here is narrower than Phase 2/3 (no prompt engineering or
+  retrieval strategy involved), and the spec itself names only this one
+  example for Phase 4.
+
+**Key decisions:**
+
+- Rejected drafts still flow through the graph to a terminal node (so status
+  and audit trail are always recorded), but deliberately never reach
+  `notify_patient_of_recommendation` — the architecture diagram's single
+  "notify_patient" box is a simplification; a rejected AI recommendation
+  reaching a patient would be a bug, not an edge case to shrug off.
+  `tests/test_approval_graph.py` asserts this directly (`calls["notify"] == []`
+  for the reject case).
+- `start_review`/`resume_review` are keyed by `thread_id=recommendation_id`
+  in the checkpointer config — one recommendation is one LangGraph thread.
+- Real patient notification (email/SMS/portal) is a stub that only logs —
+  wiring an actual channel is out of scope for this phase.
+
+**How to run:**
+
+```bash
+make up          # mongodb + localstack
+make test         # includes tests/test_approval_graph.py
+```
+
+```bash
+curl -X POST localhost:8000/reviews/<recommendation_id>/approve -H 'content-type: application/json' -d '{"reviewer": "dr.smith"}'
+curl -X POST localhost:8000/reviews/<recommendation_id>/edit -H 'content-type: application/json' -d '{"reviewer": "dr.smith", "edited_text": "..."}'
+curl -X POST localhost:8000/reviews/<recommendation_id>/reject -H 'content-type: application/json' -d '{"reviewer": "dr.smith", "reason": "..."}'
+```
