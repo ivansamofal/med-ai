@@ -9,6 +9,7 @@ once you have your own AWS access configured.
 import json
 
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
 from app.config import settings
 
@@ -26,6 +27,19 @@ FAKE_RESPONSE = json.dumps(
 )
 
 
+class _FakeChatModel(FakeListChatModel):
+    """`FakeListChatModel` plus a no-op `bind_tools`, so the chat agent
+    (Phase 5) can compile and run offline the same way the Phase 3
+    recommendation chain does. It never actually emits a tool call —
+    deciding *when* to call a tool needs real model intelligence, which the
+    offline fake deliberately doesn't have; switch to `LLM_BACKEND=bedrock`
+    to exercise real tool-calling.
+    """
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+
 def get_chat_model() -> BaseChatModel:
     if settings.llm_backend == "bedrock":
         from langchain_aws import ChatBedrockConverse
@@ -40,6 +54,4 @@ def get_chat_model() -> BaseChatModel:
             max_tokens=settings.bedrock_max_tokens,
         )
 
-    from langchain_core.language_models.fake_chat_models import FakeListChatModel
-
-    return FakeListChatModel(responses=[FAKE_RESPONSE])
+    return _FakeChatModel(responses=[FAKE_RESPONSE])
