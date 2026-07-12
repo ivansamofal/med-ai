@@ -13,7 +13,7 @@ from typing import Literal, TypedDict
 
 from bson import ObjectId
 from langgraph.checkpoint.mongodb import MongoDBSaver
-from langgraph.graph import StateGraph
+from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import interrupt
 
@@ -88,37 +88,60 @@ def get_checkpointer() -> MongoDBSaver:
     return MongoDBSaver(get_sync_client(), db_name=settings.mongo_db_name)
 
 
-def build_approval_graph(checkpointer=None) -> CompiledStateGraph:
-    """TODO (Phase 4, yours to implement): the approval graph's conditional edges.
+def _final_text(state: ApprovalState) -> str:
+    if state["decision"] == "edited":
+        return state["edited_text"]
+    return state["recommendation_text"]
 
-    WHAT: Wire the full graph: `draft_ready` -> `await_clinician` (both
-    provided above) -> then route based on `state["decision"]` to whatever
-    node(s) you design for "approved", "edited", and "rejected", using the
-    provided `finalize_recommendation`, `write_audit_log`, and
-    `notify_patient_of_recommendation` helpers. Compile with `checkpointer`
-    (falls back to the real Mongo-backed `get_checkpointer()` when `None` —
-    the parameter exists so tests can inject an in-memory `MemorySaver`).
 
-    WHY: This is the one place branching logic lives in the whole system.
-    The architecture diagram draws "approved / edited / rejected" flowing
-    into a single "notify_patient" box, but think about what that box should
-    actually do for each outcome — does a *rejected* draft really warrant
-    calling `notify_patient_of_recommendation`? Does "edited" need different
-    handling than "approved" before it's finalized? Whether that's one node
-    with internal branching, or several nodes wired with
-    `add_conditional_edges`, is your call — but the routing has to be
-    deliberate, not just "call notify for everything."
-
-    Hints:
-    - `StateGraph(ApprovalState)`, `.add_node(name, fn)`, `.set_entry_point(name)`,
-      `.add_edge(a, b)`, `.add_conditional_edges(source, routing_fn, path_map)`,
-      and `langgraph.graph.END` are what you're composing with.
-    - A routing function reads `state["decision"]` and returns which node
-      name (or `END`) to go to next — that's the "conditional edge."
-    - `finalize_recommendation(recommendation_id, status, final_text)`: for
-      "edited", `final_text` should be `state["edited_text"]`; otherwise
-      `state["recommendation_text"]`.
-    - Don't forget `write_audit_log` fires for every outcome, including
-      rejection — an audit trail with gaps isn't an audit trail.
+def notify_patient(state: ApprovalState) -> ApprovalState:
+    """Terminal node for approved/edited drafts: finalize, audit-log, and
+    actually notify the patient.
     """
-    raise NotImplementedError("TODO(phase-4): implement build_approval_graph conditional routing")
+    final_text = _final_text(state)
+    finalize_recommendation(state["recommendation_id"], state["decision"], final_text)
+    write_audit_log(state["recommendation_id"], state["decision"], state["reviewer"], state["reason"])
+    notify_patient_of_recommendation(state["patient_id"], final_text)
+    return state
+
+
+def record_rejection(state: ApprovalState) -> ApprovalState:
+    """Terminal node for rejected drafts: finalize and audit-log, but never
+    notify the patient — a rejected AI draft must not reach them.
+    """
+    finalize_recommendation(state["recommendation_id"], "rejected", state["recommendation_text"])
+    write_audit_log(state["recommendation_id"], "rejected", state["reviewer"], state["reason"])
+    return state
+
+
+def _route_on_decision(state: ApprovalState) -> str:
+    if state["decision"] == "rejected":
+        return "record_rejection"
+    return "notify_patient"
+
+
+def build_approval_graph(checkpointer=None) -> CompiledStateGraph:
+    """Wires `draft_ready -> await_clinician -> [notify_patient | record_rejection]`.
+
+    "approved" and "edited" both finalize + audit-log + notify the patient
+    (only the persisted text differs); "rejected" finalizes + audit-logs but
+    deliberately never calls `notify_patient_of_recommendation` — nothing
+    should reach a patient for a draft a clinician rejected.
+    """
+    graph = StateGraph(ApprovalState)
+    graph.add_node("draft_ready", draft_ready)
+    graph.add_node("await_clinician", await_clinician)
+    graph.add_node("notify_patient", notify_patient)
+    graph.add_node("record_rejection", record_rejection)
+
+    graph.set_entry_point("draft_ready")
+    graph.add_edge("draft_ready", "await_clinician")
+    graph.add_conditional_edges(
+        "await_clinician",
+        _route_on_decision,
+        {"notify_patient": "notify_patient", "record_rejection": "record_rejection"},
+    )
+    graph.add_edge("notify_patient", END)
+    graph.add_edge("record_rejection", END)
+
+    return graph.compile(checkpointer=checkpointer or get_checkpointer())

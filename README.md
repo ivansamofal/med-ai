@@ -275,3 +275,92 @@ curl -X POST localhost:8000/reviews/<recommendation_id>/approve -H 'content-type
 curl -X POST localhost:8000/reviews/<recommendation_id>/edit -H 'content-type: application/json' -d '{"reviewer": "dr.smith", "edited_text": "..."}'
 curl -X POST localhost:8000/reviews/<recommendation_id>/reject -H 'content-type: application/json' -d '{"reviewer": "dr.smith", "reason": "..."}'
 ```
+
+## Phase 5 — Chat/appointment agent (LangGraph, tool-calling)
+
+A patient/clinician chatbot that can actually act — check availability,
+book/reschedule/cancel appointments, pull a patient's lab history, and
+escalate red-flag values — instead of just answering questions. LangGraph
+owns this because it loops (model → tools → model...) and has to make a
+safety-critical routing decision that can't be left to the model's own
+judgment alone.
+
+**What was built:**
+
+- `app/domain/appointment.py` — `Appointment` document schema.
+- `app/agent/scheduling.py` — a deterministic scheduling backend: fixed
+  09:00-17:00 business hours in 30-minute slots per doctor, checked against
+  the `appointments` collection for conflicts. Plain calendar math, not AI
+  logic.
+- `app/agent/tools.py` — the six LangChain `@tool`s from the architecture
+  spec (`check_availability`, `book_appointment`, `reschedule_appointment`,
+  `cancel_appointment`, `get_patient_lab_history`, `escalate_to_oncall`).
+  Every tool returns a small JSON-serializable dict — the model only ever
+  sees `ToolMessage`s, never touches Mongo or the vector store directly.
+- `app/agent/graph.py` — `ChatState`, the `agent`/`tools`/`escalate` nodes,
+  and the system prompt stating the guardrails (never diagnose, always cite,
+  escalate on red flags). Checkpointed via `MongoDBSaver` — same sync-graph-
+  wrapped-in-`asyncio.to_thread` pattern as the approval graph (Phase 4),
+  since LangGraph's Mongo checkpointer has no async version yet.
+- `app/agent/service.py` / `app/api/routes/chat.py` — `POST /chat`, keyed by
+  `session_id` as the LangGraph thread, so conversation memory persists per
+  patient session across restarts.
+- `app/knowledge/reference_ranges.py` — structured (CSV, not vector-search)
+  access to the reference-range table's `critical_low`/`critical_high`
+  columns — red-flag detection needs an exact number for a known test code,
+  not a similarity search that might return the wrong test's passage.
+- `app/llm/interface.py` — the fake chat backend now also implements a
+  no-op `bind_tools` (discovered as a real bug while smoke-testing `/chat`
+  locally: the default offline backend couldn't compile the agent at all).
+  It still never emits a tool call itself — exercising real tool selection
+  needs `LLM_BACKEND=bedrock`.
+- `app/db/sync_mongo.py` — the sync Mongo client now sets `tz_aware=True`
+  (another bug found by hand: without it, slot-conflict comparisons in
+  `app.agent.scheduling` silently never matched, since pymongo was handing
+  back naive datetimes that never compared equal to this app's tz-aware
+  ones).
+
+**TODOs (all three implemented):**
+
+- `app/agent/redflag.py::detect_red_flag` — the red-flag escalation rule:
+  compares a lab value against its test code's critical thresholds (a
+  narrower, more severe subset of Phase 1's `is_abnormal`), returning `None`
+  when a threshold is missing rather than guessing.
+- `app/agent/tools.py::build_lab_history_context` — grounds
+  `get_patient_lab_history`'s output: cites reference-range/guideline
+  passages for abnormal/red-flagged results only (not every normal one), and
+  surfaces a top-level `red_flag` bool the graph's routing reads.
+- `app/agent/graph.py::build_chat_graph` — the conditional routing: the
+  standard `agent → tools`/`agent → END` loop uses LangGraph's prebuilt
+  `tools_condition` (no reason to hand-roll it), but `tools → agent` vs.
+  `tools → escalate` is this project's own guardrail — if
+  `get_patient_lab_history` flagged a red flag, the graph forces an
+  escalation instead of looping back to the model, so escalation doesn't
+  depend on a small (or the offline fake) model choosing to call
+  `escalate_to_oncall` itself.
+
+**Key decisions:**
+
+- Red flags are a strict subset of `is_abnormal`, not a synonym for it —
+  escalating every mildly-abnormal result would dilute the signal for
+  genuinely urgent ones and make the guardrail noise, not safety.
+- The `escalate` node is a hard exit, not a detour back into free-form chat
+  — once forced, the turn ends with a fixed message; the model never gets a
+  chance to soften or override it.
+- `doctor` is a free-text identifier (no `Doctor` domain model) — same
+  minimalism as `reviewer` being a plain string in Phase 4; nothing yet
+  needs doctor-specific data beyond a name to key appointments on.
+
+**How to run:**
+
+```bash
+make up          # mongodb + localstack
+make test         # includes test_redflag.py, test_scheduling.py, test_tools.py, test_chat_graph.py
+make run
+```
+
+```bash
+curl -X POST localhost:8000/chat -H 'content-type: application/json' -d '{
+  "session_id": "sess-1", "patient_id": "p-123", "message": "What appointments does dr.jones have open on 2026-08-10?"
+}'
+```

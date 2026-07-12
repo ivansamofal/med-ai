@@ -24,6 +24,7 @@ async def clean_mongo():
     db = get_client()[settings.mongo_db_name]
     await db["lab_results"].delete_many({})
     await db["recommendations"].delete_many({})
+    await db["appointments"].delete_many({})
     close_client()
 
 

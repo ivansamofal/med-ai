@@ -19,7 +19,11 @@ _client: pymongo.MongoClient | None = None
 def get_sync_client() -> pymongo.MongoClient:
     global _client
     if _client is None:
-        _client = pymongo.MongoClient(settings.mongo_uri)
+        # tz_aware=True: without it, pymongo reads back naive datetimes (UTC,
+        # but with no tzinfo), which then compare unequal to the tz-aware
+        # datetimes this app writes everywhere else (e.g. scheduling slot
+        # comparisons in app.agent.scheduling).
+        _client = pymongo.MongoClient(settings.mongo_uri, tz_aware=True)
     return _client
 
 
