@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MedAI — Dashboard</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --border: #e3e6eb;
+    --text: #1a1d23;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --danger: #dc2626;
+    --danger-bg: #fef2f2;
+    --warn: #b45309;
+    --warn-bg: #fffbeb;
+    --ok: #15803d;
+    --ok-bg: #f0fdf4;
+    --neutral-bg: #f3f4f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --panel: #171a21;
+      --border: #2a2e37;
+      --text: #e6e8eb;
+      --muted: #9aa1ac;
+      --accent: #60a5fa;
+      --danger: #f87171;
+      --danger-bg: #2a1414;
+      --warn: #fbbf24;
+      --warn-bg: #2a2110;
+      --ok: #4ade80;
+      --ok-bg: #10241a;
+      --neutral-bg: #202430;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 24px clamp(16px, 4vw, 40px);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0 0 4px; font-size: 1.4rem; }
+  header p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  main {
+    padding: 24px clamp(16px, 4vw, 40px) 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  section > .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  section > .section-head h2 { margin: 0; font-size: 1rem; }
+  section > .section-head .count { color: var(--muted); font-size: 0.85rem; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; min-width: 640px; }
+  th, td { text-align: left; padding: 10px 18px; white-space: nowrap; }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border); }
+  td.wrap { white-space: normal; min-width: 260px; }
+  .empty, .loading, .error {
+    padding: 24px 18px;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .error { color: var(--danger); }
+  .badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .badge.status-pending_review { background: var(--warn-bg); color: var(--warn); }
+  .badge.status-approved { background: var(--ok-bg); color: var(--ok); }
+  .badge.status-edited { background: var(--ok-bg); color: var(--ok); }
+  .badge.status-rejected { background: var(--danger-bg); color: var(--danger); }
+  .badge.status-scheduled { background: var(--ok-bg); color: var(--ok); }
+  .badge.status-cancelled { background: var(--neutral-bg); color: var(--muted); }
+  .abnormal { color: var(--danger); font-weight: 600; }
+  .citations { margin: 4px 0 0; padding-left: 16px; color: var(--muted); font-size: 0.82rem; }
+  .actor { color: var(--muted); }
+  button#refresh {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  button#refresh:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>MedAI — Dashboard</h1>
+    <p>Read-only view over lab results, AI-drafted recommendations, appointments, and the audit log. <button id="refresh">Refresh</button></p>
+  </header>
+  <main>
+    <section id="lab-results-section">
+      <div class="section-head"><h2>Lab Results</h2><span class="count"></span></div>
+      <div class="table-wrap"><div class="loading">Loading…</div></div>
+    </section>
+
+    <section id="recommendations-section">
+      <div class="section-head"><h2>Recommendations</h2><span class="count"></span></div>
+      <div class="table-wrap"><div class="loading">Loading…</div></div>
+    </section>
+
+    <section id="appointments-section">
+      <div class="section-head"><h2>Appointments</h2><span class="count"></span></div>
+      <div class="table-wrap"><div class="loading">Loading…</div></div>
+    </section>
+
+    <section id="audit-log-section">
+      <div class="section-head"><h2>Audit Log</h2><span class="count"></span></div>
+      <div class="table-wrap"><div class="loading">Loading…</div></div>
+    </section>
+  </main>
+
+<script>
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function formatTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d) ? iso : d.toLocaleString(undefined, {
+    year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function badge(status) {
+  return `<span class="badge status-${escapeHtml(status)}">${escapeHtml(status.replace("_", " "))}</span>`;
+}
+
+async function fetchJson(path) {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+  return res.json();
+}
+
+function renderTable(container, rows, columns, emptyMessage) {
+  if (!rows.length) {
+    container.innerHTML = `<div class="empty">${emptyMessage}</div>`;
+    return;
+  }
+  const head = columns.map((c) => `<th>${c.label}</th>`).join("");
+  const body = rows
+    .map((row) => `<tr>${columns.map((c) => `<td class="${c.wrap ? "wrap" : ""}">${c.render(row)}</td>`).join("")}</tr>`)
+    .join("");
+  container.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function setCount(sectionEl, n) {
+  sectionEl.querySelector(".count").textContent = n === 1 ? "1 row" : `${n} rows`;
+}
+
+async function loadSection(sectionId, path, columns, emptyMessage) {
+  const section = document.getElementById(sectionId);
+  const wrap = section.querySelector(".table-wrap");
+  try {
+    const rows = await fetchJson(path);
+    renderTable(wrap, rows, columns, emptyMessage);
+    setCount(section, rows.length);
+  } catch (err) {
+    wrap.innerHTML = `<div class="error">Failed to load: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function loadAll() {
+  loadSection("lab-results-section", "/lab-results", [
+    { label: "Patient", render: (r) => escapeHtml(r.patient_id) },
+    { label: "Test", render: (r) => `${escapeHtml(r.test_name)} (${escapeHtml(r.test_code)})` },
+    { label: "Value", render: (r) => `<span class="${r.is_abnormal ? "abnormal" : ""}">${r.value} ${escapeHtml(r.unit)}</span>` },
+    { label: "Abnormal", render: (r) => (r.is_abnormal ? "yes" : "no") },
+    { label: "Resulted", render: (r) => formatTime(r.resulted_at) },
+  ], "No lab results yet — run `python -m scripts.seed_demo_data` or POST /lab-results.");
+
+  loadSection("recommendations-section", "/recommendations", [
+    { label: "Patient", render: (r) => escapeHtml(r.patient_id) },
+    { label: "Status", render: (r) => badge(r.status) },
+    {
+      label: "Recommendation", wrap: true, render: (r) =>
+        `${escapeHtml(r.recommendation_text)}` +
+        (r.citations.length
+          ? `<ul class="citations">${r.citations.map((c) => `<li>${escapeHtml(c)}</li>`).join("")}</ul>`
+          : ""),
+    },
+    { label: "Created", render: (r) => formatTime(r.created_at) },
+  ], "No recommendations yet — needs an abnormal lab result to run the chain against.");
+
+  loadSection("appointments-section", "/appointments", [
+    { label: "Patient", render: (r) => escapeHtml(r.patient_id) },
+    { label: "Doctor", render: (r) => escapeHtml(r.doctor) },
+    { label: "Scheduled", render: (r) => formatTime(r.scheduled_at) },
+    { label: "Duration", render: (r) => `${r.duration_minutes} min` },
+    { label: "Status", render: (r) => badge(r.status) },
+  ], "No appointments yet.");
+
+  loadSection("audit-log-section", "/audit-log", [
+    { label: "Recommendation", render: (r) => escapeHtml(r.recommendation_id) },
+    { label: "Action", render: (r) => badge(r.action) },
+    { label: "Actor", render: (r) => `<span class="actor">${escapeHtml(r.actor)}</span>` },
+    { label: "Reason", wrap: true, render: (r) => escapeHtml(r.reason || "—") },
+    { label: "When", render: (r) => formatTime(r.created_at) },
+  ], "No audit log entries yet.");
+}
+
+document.getElementById("refresh").addEventListener("click", loadAll);
+loadAll();
+</script>
+</body>
+</html>

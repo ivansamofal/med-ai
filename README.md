@@ -364,3 +364,40 @@ curl -X POST localhost:8000/chat -H 'content-type: application/json' -d '{
   "session_id": "sess-1", "patient_id": "p-123", "message": "What appointments does dr.jones have open on 2026-08-10?"
 }'
 ```
+
+## Extra: demo seed data + read-only dashboard
+
+Not part of the 8-phase plan — added on request to have sample data and a
+way to look at it without a REST client. Read-only by design: no
+approve/edit/reject or chat from the browser, just tables over the
+existing GET endpoints.
+
+**What was built:**
+
+- `scripts/seed_demo_data.py` (`make seed`) — populates 8 lab results across
+  3 patients (including two red-flag values — critical potassium and a
+  critical-low platelet count), runs the real recommendation chain on the
+  abnormal ones, files them for review, and resolves them to a mix of
+  `approved`/`edited`/`rejected`/`pending_review` so every status shows up.
+  Also seeds 3 appointments. Runs entirely in-process (calls
+  `generate_recommendation`/`start_review`/`resume_review` directly) — no
+  server, worker, or SQS round-trip needed, so it's deterministic and fast.
+- `GET /lab-results`, `GET /recommendations`, `GET /appointments`,
+  `GET /audit-log` — the read side the dashboard (and the seed script's
+  verification) needed; these didn't exist before since every prior phase
+  only needed to write, not list.
+- `app/db/mongo.py` — `AppointmentRepository` and `AuditLogRepository`
+  (async/Motor), reading the same collections the sync approval graph and
+  chat agent write to — Mongo doesn't care which driver wrote a document.
+- `static/index.html`, mounted at `/dashboard` — a single static page, no
+  build step (plain HTML/CSS/`fetch`), listing all four resources with
+  status badges and abnormal/red-flag highlighting.
+
+**How to run:**
+
+```bash
+make up
+make ingest      # if you haven't already — recommendations need the KB index
+make seed
+make run         # then open http://localhost:8000/dashboard/
+```
