@@ -48,3 +48,21 @@ async def ingest_lab_result(
         is_abnormal=lab_result.is_abnormal,
         resulted_at=lab_result.resulted_at.isoformat(),
     )
+
+
+@router.get("/lab-results", response_model=list[LabResultResponse])
+async def list_lab_results(db: AsyncIOMotorDatabase = Depends(get_database)) -> list[LabResultResponse]:
+    documents = await LabResultRepository(db).list_recent()
+    return [
+        LabResultResponse(
+            id=document["id"],
+            patient_id=document["patient_id"],
+            test_code=document["test_code"],
+            test_name=document["test_name"],
+            value=document["value"],
+            unit=document["unit"],
+            is_abnormal=document["is_abnormal"],
+            resulted_at=document["resulted_at"].isoformat(),
+        )
+        for document in documents
+    ]
