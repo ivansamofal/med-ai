@@ -6,6 +6,7 @@ from app.domain.appointment import Appointment
 from app.domain.audit_log import AuditLogEntry
 from app.domain.lab_result import LabResult
 from app.domain.recommendation import Recommendation
+from app.domain.scanned_document import ScannedDocument
 
 _client: AsyncIOMotorClient | None = None
 
@@ -105,6 +106,34 @@ class AppointmentRepository:
         async for document in cursor:
             document_id = str(document.pop("_id"))
             results.append({"id": document_id, **Appointment(**document).model_dump()})
+        return results
+
+
+class ScannedDocumentRepository:
+    """Persistence for OCR'd documents and their extracted entities."""
+
+    COLLECTION = "scanned_documents"
+
+    def __init__(self, db: AsyncIOMotorDatabase):
+        self._collection = db[self.COLLECTION]
+
+    async def insert(self, document: ScannedDocument) -> str:
+        result = await self._collection.insert_one(document.model_dump())
+        return str(result.inserted_id)
+
+    async def get_by_id(self, document_id: str) -> ScannedDocument:
+        document = await self._collection.find_one({"_id": ObjectId(document_id)})
+        if document is None:
+            raise ValueError(f"No scanned document found for id={document_id}")
+        document.pop("_id")
+        return ScannedDocument(**document)
+
+    async def list_recent(self, limit: int = 50) -> list[dict]:
+        cursor = self._collection.find().sort("created_at", -1).limit(limit)
+        results = []
+        async for document in cursor:
+            document_id = str(document.pop("_id"))
+            results.append({"id": document_id, **ScannedDocument(**document).model_dump()})
         return results
 
 

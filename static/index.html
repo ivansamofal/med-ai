@@ -116,6 +116,40 @@
     cursor: pointer;
   }
   button#refresh:hover { border-color: var(--accent); color: var(--accent); }
+  .simulate-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+  .hint { margin: 0; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+  .hint code {
+    background: var(--neutral-bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.82em;
+  }
+  button#simulate-btn {
+    align-self: flex-start;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button#simulate-btn:hover { opacity: 0.9; }
+  button#simulate-btn:disabled { opacity: 0.6; cursor: default; }
+  .simulate-log {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 260px;
+    overflow-y: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+  }
+  .simulate-line { padding: 2px 0; }
+  .simulate-ok { color: var(--ok); }
+  .simulate-warn { color: var(--warn); }
+  .simulate-err { color: var(--danger); }
 </style>
 </head>
 <body>
@@ -124,6 +158,21 @@
     <p>Read-only view over lab results, AI-drafted recommendations, appointments, and the audit log. <button id="refresh">Refresh</button></p>
   </header>
   <main>
+    <section id="simulate-section">
+      <div class="section-head"><h2>Simulate Lab Feed</h2><span class="count"></span></div>
+      <div class="simulate-body">
+        <p class="hint">
+          Pulls one canned payload from a local fixture — standing in for an external lab vendor
+          API — then runs it through the real pipeline: <code>GET /demo/next-lab-result</code> →
+          <code>POST /lab-results</code> (normalize → Mongo → publish <code>lab_result_created</code>)
+          → the recommendation worker's LlamaIndex retrieval + LangChain generation. Requires
+          <code>make worker</code> running in another terminal to actually process the queued event.
+        </p>
+        <button id="simulate-btn">Fetch next lab result &amp; ingest</button>
+        <div id="simulate-log" class="simulate-log"></div>
+      </div>
+    </section>
+
     <section id="lab-results-section">
       <div class="section-head"><h2>Lab Results</h2><span class="count"></span></div>
       <div class="table-wrap"><div class="loading">Loading…</div></div>
@@ -141,6 +190,26 @@
 
     <section id="audit-log-section">
       <div class="section-head"><h2>Audit Log</h2><span class="count"></span></div>
+      <div class="table-wrap"><div class="loading">Loading…</div></div>
+    </section>
+
+    <section id="documents-upload-section">
+      <div class="section-head"><h2>OCR a Document</h2><span class="count"></span></div>
+      <div class="simulate-body">
+        <p class="hint">
+          Uploads an image to <code>POST /documents/ocr</code>: OCR (Tesseract, or a
+          deterministic fake by default) → LLM entity extraction → validation against known
+          test codes → persisted. Try one of the images from
+          <code>make sample-documents</code> (<code>data/demo/sample_documents/</code>).
+        </p>
+        <input type="file" id="document-file" accept="image/*" />
+        <button id="upload-btn">Upload &amp; run OCR pipeline</button>
+        <div id="upload-log" class="simulate-log"></div>
+      </div>
+    </section>
+
+    <section id="documents-section">
+      <div class="section-head"><h2>Documents</h2><span class="count"></span></div>
       <div class="table-wrap"><div class="loading">Loading…</div></div>
     </section>
   </main>
@@ -235,8 +304,135 @@ function loadAll() {
     { label: "Reason", wrap: true, render: (r) => escapeHtml(r.reason || "—") },
     { label: "When", render: (r) => formatTime(r.created_at) },
   ], "No audit log entries yet.");
+
+  loadSection("documents-section", "/documents", [
+    { label: "Filename", render: (r) => escapeHtml(r.filename) },
+    { label: "Status", render: (r) => badge(r.status) },
+    {
+      label: "Entities", wrap: true, render: (r) =>
+        `<code>${escapeHtml(JSON.stringify(r.extracted_entities))}</code>`,
+    },
+    {
+      label: "Issues", wrap: true, render: (r) =>
+        r.validation_issues.length
+          ? `<ul class="citations">${r.validation_issues.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`
+          : "—",
+    },
+    { label: "Uploaded", render: (r) => formatTime(r.created_at) },
+  ], "No documents yet — upload one above or run `make sample-documents` first.");
 }
 
+const simulateBtn = document.getElementById("simulate-btn");
+const simulateLog = document.getElementById("simulate-log");
+
+function logStep(message, kind = "") {
+  const line = document.createElement("div");
+  line.className = `simulate-line ${kind ? `simulate-${kind}` : ""}`;
+  line.textContent = message;
+  simulateLog.appendChild(line);
+  simulateLog.scrollTop = simulateLog.scrollHeight;
+}
+
+async function postJson(path, body) {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${path} → HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+async function waitForRecommendation(labResultId, attempts = 20, delayMs = 1500) {
+  for (let i = 0; i < attempts; i++) {
+    const recs = await fetchJson("/recommendations");
+    const match = recs.find((r) => r.lab_result_id === labResultId);
+    if (match) return match;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return null;
+}
+
+async function runSimulation() {
+  simulateBtn.disabled = true;
+  simulateLog.innerHTML = "";
+  try {
+    logStep("Fetching next lab result from the simulated vendor API…");
+    const { payload, remaining_in_batch } = await fetchJson("/demo/next-lab-result");
+    logStep(
+      `Received ${payload.test_name} (${payload.test_code}) = ${payload.result_value} ${payload.unit} ` +
+      `for ${payload.patient_id} from ${payload.lab_name}. (${remaining_in_batch} left in this batch)`
+    );
+
+    logStep("POSTing to /lab-results — normalize → store in Mongo → publish lab_result_created…");
+    const ingested = await postJson("/lab-results", payload);
+    logStep(
+      `Ingested as lab result ${ingested.id}${ingested.is_abnormal ? " — flagged abnormal" : ""}.`,
+      "ok"
+    );
+
+    logStep("Waiting for the recommendation worker to pick up the event (needs `make worker` running)…");
+    const recommendation = await waitForRecommendation(ingested.id);
+    if (recommendation) {
+      logStep(`Recommendation drafted: "${recommendation.recommendation_text}"`, "ok");
+      if (recommendation.citations.length) {
+        logStep(`Citations: ${recommendation.citations.join(", ")}`, "ok");
+      }
+    } else {
+      logStep("No recommendation appeared within 30s — is `make worker` running?", "warn");
+    }
+
+    loadAll();
+  } catch (err) {
+    logStep(`Error: ${err.message}`, "err");
+  } finally {
+    simulateBtn.disabled = false;
+  }
+}
+
+simulateBtn.addEventListener("click", runSimulation);
+
+const uploadBtn = document.getElementById("upload-btn");
+const uploadLog = document.getElementById("upload-log");
+const documentFile = document.getElementById("document-file");
+
+function logUpload(message, kind = "") {
+  const line = document.createElement("div");
+  line.className = `simulate-line ${kind ? `simulate-${kind}` : ""}`;
+  line.textContent = message;
+  uploadLog.appendChild(line);
+  uploadLog.scrollTop = uploadLog.scrollHeight;
+}
+
+async function runUpload() {
+  const file = documentFile.files[0];
+  if (!file) {
+    logUpload("Choose an image file first.", "warn");
+    return;
+  }
+  uploadBtn.disabled = true;
+  uploadLog.innerHTML = "";
+  try {
+    logUpload(`Uploading ${file.name}…`);
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/documents/ocr", { method: "POST", body: formData });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    const doc = await res.json();
+    logUpload(`Processed as document ${doc.id} (status: ${doc.status}).`, "ok");
+    logUpload(`Entities: ${JSON.stringify(doc.extracted_entities)}`, "ok");
+    if (doc.validation_issues.length) {
+      logUpload(`Validation issues: ${doc.validation_issues.join("; ")}`, "warn");
+    }
+    loadAll();
+  } catch (err) {
+    logUpload(`Error: ${err.message}`, "err");
+  } finally {
+    uploadBtn.disabled = false;
+  }
+}
+
+uploadBtn.addEventListener("click", runUpload);
 document.getElementById("refresh").addEventListener("click", loadAll);
 loadAll();
 </script>

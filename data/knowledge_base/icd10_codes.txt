@@ -1,0 +1,25 @@
+# ICD-10-CM codes relevant to the conditions covered by this knowledge base
+# Format: CODE - Description
+E11.9 - Type 2 diabetes mellitus without complications
+E11.65 - Type 2 diabetes mellitus with hyperglycemia
+E11.22 - Type 2 diabetes mellitus with diabetic chronic kidney disease
+E11.40 - Type 2 diabetes mellitus with diabetic neuropathy, unspecified
+I10 - Essential (primary) hypertension
+I11.9 - Hypertensive heart disease without heart failure
+I12.9 - Hypertensive chronic kidney disease with stage 1-4 chronic kidney disease
+I12.0 - Hypertensive chronic kidney disease with stage 5 or end stage renal disease
+N18.3 - Chronic kidney disease, stage 3 (moderate)
+N18.4 - Chronic kidney disease, stage 4 (severe)
+N18.5 - Chronic kidney disease, stage 5
+N18.6 - End stage renal disease
+I48.91 - Unspecified atrial fibrillation
+Z79.01 - Long term (current) use of anticoagulants
+D68.32 - Hemorrhagic disorder due to extrinsic circulating anticoagulants
+E78.5 - Hyperlipidemia, unspecified
+E78.00 - Pure hypercholesterolemia, unspecified
+D64.9 - Anemia, unspecified
+D50.9 - Iron deficiency anemia, unspecified
+E03.9 - Hypothyroidism, unspecified
+E05.90 - Thyrotoxicosis, unspecified, without thyrotoxic crisis or storm
+R73.09 - Other abnormal glucose, prediabetes
+R79.89 - Other specified abnormal findings of blood chemistry

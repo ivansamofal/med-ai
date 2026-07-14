@@ -12,7 +12,9 @@ from app.knowledge.embeddings import get_embedding_model
 from app.knowledge.loaders import (
     load_drug_interaction_documents,
     load_guideline_documents,
+    load_icd10_documents,
     load_lab_reference_range_documents,
+    load_medical_reference_documents,
 )
 from app.knowledge.vector_store import get_vector_store
 
@@ -28,10 +30,14 @@ def build_index(data_dir: Path = DATA_DIR) -> VectorStoreIndex:
     guideline_docs = load_guideline_documents(data_dir / "guidelines")
     drug_docs = load_drug_interaction_documents(data_dir / "drug_interactions.json")
     range_docs = load_lab_reference_range_documents(data_dir / "lab_reference_ranges.csv")
+    icd10_docs = load_icd10_documents(data_dir / "icd10_codes.txt")
+    reference_docs = load_medical_reference_documents(data_dir / "medical_reference.txt")
 
     nodes = build_guideline_nodes(guideline_docs)
+    nodes += build_guideline_nodes(reference_docs)
     nodes += _documents_to_nodes(drug_docs)
     nodes += _documents_to_nodes(range_docs)
+    nodes += _documents_to_nodes(icd10_docs)
 
     storage_context = StorageContext.from_defaults(vector_store=get_vector_store())
     return VectorStoreIndex(

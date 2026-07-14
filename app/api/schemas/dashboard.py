@@ -32,3 +32,12 @@ class AuditLogResponse(BaseModel):
     actor: str
     reason: str | None
     created_at: str
+
+
+class DocumentResponse(BaseModel):
+    id: str
+    filename: str
+    extracted_entities: dict
+    validation_issues: list[str]
+    status: str
+    created_at: str

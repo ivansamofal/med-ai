@@ -1,0 +1,47 @@
+HbA1c (Glycated Hemoglobin)
+HbA1c reflects average blood glucose over the preceding 2-3 months by
+measuring the fraction of hemoglobin bound to glucose. Below 5.7% is normal,
+5.7-6.4% indicates prediabetes, and 6.5% or above on two separate tests
+indicates diabetes. For most adults with diabetes, a treatment target of
+below 7.0% is reasonable, though targets are individualized based on age,
+comorbidities, and hypoglycemia risk.
+
+eGFR (Estimated Glomerular Filtration Rate)
+eGFR estimates how well the kidneys filter blood, calculated from serum
+creatinine, age, and sex. A value of 90 or above is normal kidney function,
+60-89 suggests mildly reduced function, and sustained values below 60 for
+three months or more indicate chronic kidney disease. Below 15 indicates
+kidney failure requiring evaluation for renal replacement therapy.
+
+INR (International Normalized Ratio)
+INR standardizes prothrombin time results across laboratories and is used to
+monitor patients on vitamin K antagonist anticoagulants such as warfarin. A
+normal INR without anticoagulation is approximately 1.0. For most
+anticoagulation indications (atrial fibrillation, venous thromboembolism),
+the therapeutic target range is 2.0-3.0; mechanical heart valves may require
+a higher target range of 2.5-3.5. Values above the therapeutic range
+increase bleeding risk; values below it increase clotting/stroke risk.
+
+LDL Cholesterol (Low-Density Lipoprotein)
+LDL is the primary target of lipid-lowering therapy because elevated levels
+directly contribute to atherosclerotic plaque formation. Optimal is below
+100 mg/dL; near-optimal is 100-129 mg/dL; borderline high is 130-159 mg/dL;
+high is 160-189 mg/dL; and very high is 190 mg/dL or above. Treatment
+targets are individualized based on overall cardiovascular risk rather than
+a single universal cutoff.
+
+TSH (Thyroid-Stimulating Hormone)
+TSH is the standard first-line screening test for thyroid dysfunction
+because it responds inversely and sensitively to circulating thyroid hormone
+levels. A normal range is approximately 0.4-4.0 mIU/L. Elevated TSH with low
+free T4 indicates primary hypothyroidism; suppressed TSH with elevated free
+T4 indicates hyperthyroidism. Subclinical cases show an abnormal TSH with
+normal free T4.
+
+Ferritin and Iron Deficiency
+Ferritin reflects the body's iron stores and is typically the first lab
+value to fall in developing iron deficiency, often before hemoglobin drops.
+Levels below 30 ng/mL are highly suggestive of iron deficiency even if
+hemoglobin is still within the normal range. Ferritin is an acute-phase
+reactant, however, and can be falsely elevated during inflammation or
+infection, which can mask a coexisting iron deficiency.

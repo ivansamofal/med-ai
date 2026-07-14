@@ -38,5 +38,9 @@ class Settings(BaseSettings):
     bedrock_model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
     bedrock_max_tokens: int = 1024
 
+    # OCR document pipeline (Extra)
+    ocr_backend: str = "fake"  # "fake" | "tesseract" — real Tesseract needs the system binary installed
+    tesseract_cmd: str | None = None  # path override, e.g. Homebrew's /opt/homebrew/bin/tesseract
+
 
 settings = Settings()

@@ -1,0 +1,22 @@
+[
+  {"id": "k-critical-high-boundary", "test_code": "K", "test_name": "Potassium", "value": 6.5, "unit": "mmol/L", "expect_red_flag": true},
+  {"id": "k-normal", "test_code": "K", "test_name": "Potassium", "value": 4.0, "unit": "mmol/L", "expect_red_flag": false},
+  {"id": "k-abnormal-not-critical", "test_code": "K", "test_name": "Potassium", "value": 5.8, "unit": "mmol/L", "expect_red_flag": false},
+  {"id": "glu-critical-low", "test_code": "GLU", "test_name": "Glucose", "value": 45, "unit": "mg/dL", "expect_red_flag": true},
+  {"id": "glu-abnormal-not-critical", "test_code": "GLU", "test_name": "Glucose", "value": 250, "unit": "mg/dL", "expect_red_flag": false},
+  {"id": "na-critical-low", "test_code": "NA", "test_name": "Sodium", "value": 115, "unit": "mmol/L", "expect_red_flag": true},
+  {"id": "na-critical-high", "test_code": "NA", "test_name": "Sodium", "value": 170, "unit": "mmol/L", "expect_red_flag": true},
+  {"id": "cr-critical-high-boundary", "test_code": "CR", "test_name": "Creatinine", "value": 4.0, "unit": "mg/dL", "expect_red_flag": true},
+  {"id": "cr-abnormal-not-critical", "test_code": "CR", "test_name": "Creatinine", "value": 2.0, "unit": "mg/dL", "expect_red_flag": false},
+  {"id": "egfr-critical-low", "test_code": "EGFR", "test_name": "Estimated GFR", "value": 10, "unit": "mL/min/1.73m2", "expect_red_flag": true},
+  {"id": "egfr-no-critical-high-guard", "test_code": "EGFR", "test_name": "Estimated GFR", "value": 150, "unit": "mL/min/1.73m2", "expect_red_flag": false},
+  {"id": "hgb-critical-low", "test_code": "HGB", "test_name": "Hemoglobin", "value": 6.5, "unit": "g/dL", "expect_red_flag": true},
+  {"id": "hgb-critical-high-boundary", "test_code": "HGB", "test_name": "Hemoglobin", "value": 20, "unit": "g/dL", "expect_red_flag": true},
+  {"id": "plt-critical-low", "test_code": "PLT", "test_name": "Platelet Count", "value": 15, "unit": "10^3/uL", "expect_red_flag": true},
+  {"id": "plt-critical-high-boundary", "test_code": "PLT", "test_name": "Platelet Count", "value": 1000, "unit": "10^3/uL", "expect_red_flag": true},
+  {"id": "wbc-critical-low", "test_code": "WBC", "test_name": "White Blood Cell Count", "value": 1.0, "unit": "10^3/uL", "expect_red_flag": true},
+  {"id": "inr-critical-high", "test_code": "INR", "test_name": "International Normalized Ratio", "value": 6.0, "unit": "ratio", "expect_red_flag": true},
+  {"id": "tsh-no-thresholds-never-flags", "test_code": "TSH", "test_name": "Thyroid Stimulating Hormone", "value": 100, "unit": "mIU/L", "expect_red_flag": false},
+  {"id": "ldl-no-thresholds-never-flags", "test_code": "LDL", "test_name": "LDL Cholesterol", "value": 500, "unit": "mg/dL", "expect_red_flag": false},
+  {"id": "hba1c-critical-high-only-bound", "test_code": "HBA1C", "test_name": "Hemoglobin A1c", "value": 15, "unit": "%", "expect_red_flag": true}
+]
