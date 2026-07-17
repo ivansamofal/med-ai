@@ -7,6 +7,8 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes.appointments import router as appointments_router
 from app.api.routes.audit_log import router as audit_log_router
 from app.api.routes.chat import router as chat_router
+from app.api.routes.demo import router as demo_router
+from app.api.routes.documents import router as documents_router
 from app.api.routes.lab_results import router as lab_results_router
 from app.api.routes.recommendations import router as recommendations_router
 from app.api.routes.reviews import router as reviews_router
@@ -33,6 +35,8 @@ app.include_router(chat_router)
 app.include_router(recommendations_router)
 app.include_router(appointments_router)
 app.include_router(audit_log_router)
+app.include_router(demo_router)
+app.include_router(documents_router)
 # Read-only dashboard (static HTML/JS, no build step) over the read
 # endpoints above — not part of the phased project spec, added on request
 # to have something to look at while seeding/demoing.

@@ -365,6 +365,77 @@ curl -X POST localhost:8000/chat -H 'content-type: application/json' -d '{
 }'
 ```
 
+## Phase 6 — Evaluation & guardrail tests
+
+A separate evaluation harness, distinct from `pytest`: `make eval` runs two
+golden-set suites against the *real* ingested knowledge base and the *real*
+reference-range CSV (no fakes), prints a per-case pass/fail report, and exits
+non-zero on any failure — so it can gate a release the same way `make test`
+gates a merge, but for retrieval quality and guardrail correctness rather
+than code correctness.
+
+**What was built:**
+
+- `data/eval/golden_qa.json` — 20 hand-written questions, four per source
+  type (`guideline`, `drug_interaction`, `reference_range`, `icd10_code`,
+  `medical_reference`), each with the citation(s) its answer should be
+  allowed to use and the specific fact (a number, a code) the retrieved text
+  must contain.
+- `data/eval/golden_red_flags.json` — 20 lab values across every test code
+  that has at least one critical threshold in the CSV, split between cases
+  that must escalate and cases that must not: exact-boundary values, values
+  abnormal-but-not-critical, and values on a test code where only one bound
+  (or no bound) is defined, to guard against over-flagging when data is
+  missing.
+- `app/eval/qa_eval.py` — `evaluate_qa()` calls the same
+  `query_knowledge_base()` every other consumer uses and checks two things
+  per question against the top-k passages: **citation-presence** (did
+  retrieval surface a passage from the right document at all?) and a
+  **faithfulness proxy** (does the retrieved text actually contain the fact
+  the question is asking about?). Checking retrieval directly — rather than
+  an LLM's paraphrase of it — keeps the suite deterministic: a generated
+  answer can only be as faithful as what got retrieved, so this catches the
+  failure mode one layer earlier and without needing a real model call.
+- `app/eval/redflag_eval.py` — `evaluate_red_flags()` runs the golden lab
+  values through the real `detect_red_flag()` and compares against the
+  expected outcome.
+- `app/eval/run_eval.py` — `make eval`'s entry point: runs both suites,
+  prints the report, returns exit code 1 if anything failed.
+- `tests/test_eval.py` — unit-level coverage of the harness itself (loader
+  schemas, citation/keyword-miss detection using a small fixture index like
+  Phase 5's tests, and a check that the golden red-flag set as authored
+  fully agrees with the real CSV) — separate from `make eval`, which
+  exercises the real corpus and is meant to be run by hand after `make
+  ingest`, not as part of the offline `make test` run.
+
+**Key decisions:**
+
+- `make eval` deliberately doesn't use `FakeEmbedding`/`FakeLLM` — the whole
+  point is to catch real regressions (a bad chunk boundary, a CSV typo), so
+  it needs the real FastEmbed-embedded index and the real threshold data.
+  `make test` stays fake-only and fast; `make eval` is the slower, real-data
+  check you run after touching the knowledge base or the reference-range CSV.
+- Faithfulness is checked against retrieved text, not a generated answer —
+  there's no general-purpose "ask anything" LLM chain in this project yet
+  (recommendation generation is scoped to one lab result; the chat agent's
+  knowledge-base use is scoped to grounding a patient's abnormal results).
+  Evaluating retrieval directly is both the honest thing to check today and
+  the layer that determines whether any future synthesis step *could* be
+  faithful.
+- The red-flag golden set intentionally includes cases with only one
+  critical bound (`EGFR`, `CR`, `INR`, `HBA1C`) and no bounds at all (`TSH`,
+  `LDL`) — the guardrail's most dangerous failure mode isn't missing a real
+  critical value, it's treating "we don't have threshold data" as "must be
+  critical" and escalating (or failing to escalate) on the wrong signal.
+
+**How to run:**
+
+```bash
+make ingest      # (re)build the real vector store — required before eval
+make eval        # golden Q&A + red-flag suites, exit 0/1
+make test         # includes tests/test_eval.py (fixture-based, offline)
+```
+
 ## Extra: demo seed data + read-only dashboard
 
 Not part of the 8-phase plan — added on request to have sample data and a
@@ -400,4 +471,225 @@ make up
 make ingest      # if you haven't already — recommendations need the KB index
 make seed
 make run         # then open http://localhost:8000/dashboard/
+```
+
+## Extra: simulated lab feed
+
+Not part of the 8-phase plan. `make seed` populates data directly, in-process
+— useful for having something to look at, but it never touches the real
+ingestion path. This adds a way to exercise the *actual* pipeline (`POST
+/lab-results` → normalize → Mongo → publish `lab_result_created` → the
+worker's real LlamaIndex retrieval + LangChain generation) from the browser,
+one simulated "lab result just came in" event at a time, instead of only via
+curl or the offline test suite.
+
+**What was built:**
+
+- `data/demo/fake_lab_api_responses.json` — 10 canned payloads, one per
+  reference-range test code, shaped exactly like the real vendor payload
+  `LabResultIngestRequest` expects (a mix of normal and abnormal values).
+- `app/api/routes/demo.py` — `GET /demo/next-lab-result`: pops one sample in
+  random order (reshuffling once the batch is exhausted), stamps fresh
+  `collected_at`/`resulted_at` timestamps and a unique `order_id` suffix, and
+  returns it. It only ever hands back fixture data — it does not itself call
+  `/lab-results`; the caller does, so the real ingestion endpoint is what
+  actually runs.
+- `static/index.html` — a "Simulate Lab Feed" section with a button that:
+  fetches one payload from `/demo/next-lab-result`, POSTs it to the real
+  `/lab-results`, then polls `/recommendations` for one matching the new
+  `lab_result_id`, logging each step. Requires `make worker` running in
+  another terminal to actually process the queued event — the button doesn't
+  bypass the SQS decoupling, it just gives you a one-click way to produce an
+  event for the worker to pick up.
+
+**Key decisions:**
+
+- The demo endpoint only *serves* fixture data; it deliberately does not call
+  `generate_recommendation`/`start_review` directly the way `scripts/seed_demo_data.py`
+  does. That script's in-process shortcut is fine for bulk-seeding a
+  dashboard; this feature's whole point is to exercise the real
+  ingest→SQS→worker path from a UI click, so short-circuiting it would defeat
+  the purpose.
+- No LLM/embedding key is required to see this work end-to-end — the worker's
+  recommendation chain always runs real LlamaIndex retrieval against the
+  ingested KB regardless of `LLM_BACKEND`; only the final generation step is
+  canned when `LLM_BACKEND=fake` (the default).
+
+**How to run:**
+
+```bash
+make up
+make ingest
+make run           # terminal 1
+make worker        # terminal 2 — required for a recommendation to appear
+# open http://localhost:8000/dashboard/ and click "Fetch next lab result & ingest"
+```
+
+## Extra: OCR document pipeline
+
+Not part of the 8-phase plan — added to cover OCR/document-entity-extraction,
+which the original spec never touched. Upload a scanned business document
+(a lab requisition form) and get back structured, validated entities:
+`POST /documents/ocr` → OCR → LLM entity extraction → validation → persisted.
+
+**What was built:**
+
+- `app/ocr/interface.py` — `OcrEngine` interface: `TesseractOcrEngine` (real,
+  `pytesseract` + the system `tesseract` binary) and `FakeOcrEngine`
+  (deterministic canned text) — the same real/fake split as
+  `app.knowledge.embeddings`/`app.llm.interface`. `OCR_BACKEND=fake` is the
+  default, so `make test` and a fresh clone need no system OCR binary.
+- `app/ocr/entities.py` — `ExtractedDocumentEntities` (patient name, document
+  date, ordering physician, test codes) + a `PydanticOutputParser` and
+  extraction prompt, reusing `get_chat_model()` from Phase 3's LLM interface
+  rather than a second model integration. `get_chat_model()` gained an
+  optional `fake_response` param so this call site's offline fake returns
+  JSON matching *this* schema instead of the recommendation chain's.
+- `app/ocr/validation.py` — `validate_entities()`: checks test codes against
+  the real reference-range CSV (`app.knowledge.reference_ranges`), flags
+  missing required fields, flags an unparseable or future document date.
+  Returns a list of issue strings rather than raising — a document with
+  issues is still persisted for review, not rejected outright.
+- `app/ocr/pipeline.py` — `process_document()`: OCR → extract → validate →
+  persist, the pipeline's single entry point.
+- `app/domain/scanned_document.py` / `ScannedDocumentRepository` — same
+  shape as `Recommendation`/`RecommendationRepository`.
+- `app/api/routes/documents.py` — `POST /documents/ocr` (multipart upload),
+  `GET /documents`.
+- `scripts/generate_sample_documents.py` (`make sample-documents`) — draws
+  three synthetic lab-requisition images with Pillow (one with a
+  deliberately missing field, to exercise validation) into
+  `data/demo/sample_documents/`.
+- The dashboard gained an upload form and a Documents table.
+
+**Key decisions:**
+
+- Tesseract (local, open-source) over AWS Textract for the real backend —
+  fully demoable offline with no cloud credentials, matching FastEmbed's
+  "real local, no cloud key" pattern for embeddings. `make test` never
+  shells out to it; `FakeOcrEngine` is the test/dev default.
+- "Ensuring data consistency" is scoped to validating extracted fields
+  against known reference data (test codes, plausible dates) — not
+  cross-referencing to other patients/records in Mongo, since `LabResult`
+  has no patient *name* field to match against, only `patient_id`.
+
+**How to run:**
+
+```bash
+brew install tesseract           # only needed for OCR_BACKEND=tesseract
+make sample-documents
+make run
+# open http://localhost:8000/dashboard/, upload an image from
+# data/demo/sample_documents/, or:
+curl -X POST localhost:8000/documents/ocr \
+  -F "file=@data/demo/sample_documents/requisition_jane_doe.png"
+```
+
+## Extra: A/B testing harness
+
+Not part of the 8-phase plan — extends the Phase 6 eval harness rather than
+building a parallel system, since the golden Q&A set is already the ground
+truth every variant should be judged against.
+
+**What was built:**
+
+- `app/eval/qa_eval.py::score_passages` — the citation+keyword check
+  factored out of `_evaluate_one` so both the plain golden-QA suite and the
+  experiment harness score identically, whatever retrieved the passages.
+- `app/eval/experiment.py` — `ExperimentVariant` (a name + a
+  `retrieve_fn(question) -> list[RetrievedPassage]`) and `run_experiment()`,
+  which runs every variant over the same golden set and returns one
+  `VariantReport` (with `.pass_rate`) per variant.
+- `app/eval/run_experiment.py` (`make ab-eval`) — ships one concrete,
+  always-runnable comparison: retrieval `top_k=3` vs `top_k=5` against the
+  real ingested KB. Needs only real embeddings, not a real LLM call, so it
+  runs with zero cloud credentials once `make ingest` has been run.
+
+**Key decisions:**
+
+- On this project's 20-question golden set, `top_k=3` and `top_k=5` both
+  score 100% — the set is small and each question's right passage is an
+  easy top-3 hit, so there's no visible delta to report yet. That's a real,
+  honest result, not a bug: it means this golden set has saturated at
+  `top_k=3`, and a bigger/harder eval set (more distractor documents, more
+  ambiguous questions) is what would actually separate these two configs.
+  The harness itself doesn't depend on the golden set's difficulty to prove
+  it works — see `tests/test_experiment.py`, which stubs two variants with
+  deliberately different retrieval quality.
+- A prompt-template A/B test (e.g. two `build_recommendation_prompt`
+  variants) needs a real LLM call to produce distinguishable output — under
+  the default fake backend, every variant returns identical canned text, so
+  that comparison only means something under `LLM_BACKEND=bedrock`.
+  `ExperimentVariant` is generic enough to score a prompt variant's
+  generated text too; the retrieval-`top_k` comparison is what's shipped
+  because it's meaningful with zero credentials.
+
+**How to run:**
+
+```bash
+make ingest
+make ab-eval
+```
+
+## Extra: Ragas integration
+
+Not part of the 8-phase plan — replaces the Phase 6 golden-QA suite's
+hand-rolled citation+keyword proxy with real Ragas retrieval metrics for
+the same 20 golden questions.
+
+**What was built:**
+
+- `data/eval/golden_qa.json` — each question gained a `reference_context`
+  field: the actual source sentence(s) the question is drawn from (verbatim
+  for `drug_interaction`/`reference_range`/`icd10_code` documents, which
+  aren't chunked; the specific fact-bearing sentence for `guideline`/
+  `medical_reference` documents, which are). `app.eval.models.GoldenQuestion`
+  gained the matching optional field.
+- `app/eval/ragas_eval.py` — `evaluate_with_ragas()`: for each question,
+  retrieves real passages via `query_knowledge_base()` and scores them
+  against `reference_context` using Ragas's `NonLLMContextPrecisionWithReference`
+  and `NonLLMContextRecall` — string-similarity metrics, not an LLM judge.
+- `app/eval/run_ragas_eval.py` (`make ragas-eval`) — same
+  print-report-and-exit shape as `make eval`/`make ab-eval`.
+
+**Key decisions:**
+
+- Non-LLM Ragas metrics over LLM-based ones (`Faithfulness`,
+  `AnswerRelevancy`) — they score via string distance (rapidfuzz), not a
+  model call, so `make ragas-eval` needs real embeddings but zero LLM/cloud
+  credentials, matching this project's "real retrieval, no required key"
+  split. Ragas's current `ragas.metrics.collections` API replaced these
+  with LLM-only versions; this uses the older, still-functional
+  `ragas.metrics` re-export instead (deprecated, not removed) since the
+  non-LLM behavior has no modern equivalent yet.
+- **A real, observed limitation, left visible rather than hidden:** running
+  `make ragas-eval` scores every `drug_interaction`/`reference_range`/
+  `icd10_code` question at a perfect 1.0 and every `guideline`/
+  `medical_reference` question at 0.0. The cause is chunk length, not
+  retrieval quality: the first group's documents are short and unchunked,
+  so the retrieved passage *is* the reference text; guideline PDFs are
+  chunked (`SentenceSplitter`, 256 chars/32 overlap — Phase 2), so a
+  retrieved chunk is a title + disclaimer + several sentences (~700+ chars)
+  around the one reference sentence (~150-250 chars). Levenshtein/Jaro
+  whole-string similarity penalizes that length gap even though the
+  reference is a verbatim substring, so the non-LLM metric — despite the
+  right passage being retrieved every time (`make eval`/`make ab-eval` both
+  pass all 20 cases) — scores it 0. Fixing this for real needs either a
+  substring-aware distance measure (Ragas doesn't currently ship one) or an
+  LLM-based judge (`ContextPrecisionWithReference` from
+  `ragas.metrics.collections`, which would need `LLM_BACKEND=bedrock` to be
+  meaningful) — noted here rather than papered over by hand-tuning the
+  reference text to match chunk boundaries, which would just go stale the
+  next time chunking parameters change.
+- `pyproject.toml` pins `langchain-community` to `>=0.4,<0.4.2`: `ragas`
+  unconditionally imports `langchain_community.chat_models.vertexai`, which
+  `langchain-community` removed in `0.4.2` (split into a separate
+  `langchain-google-vertexai` package) — without the pin, `import ragas`
+  crashes on a fresh install.
+
+**How to run:**
+
+```bash
+make ingest
+make ragas-eval
 ```

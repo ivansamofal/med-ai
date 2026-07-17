@@ -40,7 +40,11 @@ class _FakeChatModel(FakeListChatModel):
         return self
 
 
-def get_chat_model() -> BaseChatModel:
+def get_chat_model(fake_response: str | None = None) -> BaseChatModel:
+    """`fake_response` lets other structured-output call sites (e.g. OCR
+    entity extraction) supply canned JSON matching *their* output schema
+    instead of the recommendation chain's; defaults to `FAKE_RESPONSE` so
+    existing callers are unaffected."""
     if settings.llm_backend == "bedrock":
         from langchain_aws import ChatBedrockConverse
 
@@ -54,4 +58,4 @@ def get_chat_model() -> BaseChatModel:
             max_tokens=settings.bedrock_max_tokens,
         )
 
-    return _FakeChatModel(responses=[FAKE_RESPONSE])
+    return _FakeChatModel(responses=[fake_response or FAKE_RESPONSE])

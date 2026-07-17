@@ -1,9 +1,13 @@
+from datetime import datetime, timezone
+
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 
 from app.agent import tools as tools_module
 from app.agent.graph import build_chat_graph
+from app.db.sync_mongo import get_sync_database
+from app.domain.appointment import Appointment
 
 
 class ScriptedToolCallingChatModel(FakeMessagesListChatModel):
@@ -102,3 +106,61 @@ def test_book_appointment_tool_call_persists_and_agent_confirms():
     )
 
     assert result["messages"][-1].content == "You're booked with dr.jones."
+
+
+def _insert_appointment(**overrides) -> str:
+    defaults = dict(
+        patient_id="p-owner",
+        doctor="dr.jones",
+        scheduled_at=datetime(2026, 8, 10, 10, 0, tzinfo=timezone.utc),
+    )
+    defaults.update(overrides)
+    result = get_sync_database()["appointments"].insert_one(Appointment(**defaults).model_dump())
+    return str(result.inserted_id)
+
+
+def test_reschedule_appointment_rejects_a_different_patients_appointment():
+    appointment_id = _insert_appointment()
+
+    result = _run(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    _tool_call(
+                        "reschedule_appointment",
+                        {"appointment_id": appointment_id, "new_start_time": "2026-08-11T10:00:00+00:00"},
+                    )
+                ],
+            ),
+            AIMessage(content="done"),
+        ],
+        patient_id="p-attacker",
+    )
+
+    tool_message = result["messages"][-2]
+    assert "not_found" in tool_message.content
+
+    doc = get_sync_database()["appointments"].find_one({"patient_id": "p-owner"})
+    assert doc["scheduled_at"] == datetime(2026, 8, 10, 10, 0, tzinfo=timezone.utc)
+
+
+def test_cancel_appointment_rejects_a_different_patients_appointment():
+    appointment_id = _insert_appointment()
+
+    result = _run(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[_tool_call("cancel_appointment", {"appointment_id": appointment_id})],
+            ),
+            AIMessage(content="done"),
+        ],
+        patient_id="p-attacker",
+    )
+
+    tool_message = result["messages"][-2]
+    assert "not_found" in tool_message.content
+
+    doc = get_sync_database()["appointments"].find_one({"patient_id": "p-owner"})
+    assert doc["status"] == "scheduled"

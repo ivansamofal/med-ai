@@ -1,4 +1,4 @@
-.PHONY: up down test ingest eval run worker seed
+.PHONY: up down test ingest eval run worker seed sample-documents ab-eval ragas-eval
 
 up:
 	docker compose up -d
@@ -22,4 +22,13 @@ seed:
 	python -m scripts.seed_demo_data
 
 eval:
-	@echo "make eval: added in Phase 6 (golden Q&A evaluation)"
+	python -m app.eval.run_eval
+
+sample-documents:
+	python -m scripts.generate_sample_documents
+
+ab-eval:
+	python -m app.eval.run_experiment
+
+ragas-eval:
+	python -m app.eval.run_ragas_eval

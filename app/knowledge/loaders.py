@@ -49,6 +49,43 @@ def load_drug_interaction_documents(path: Path) -> list[Document]:
     return documents
 
 
+def load_icd10_documents(path: Path) -> list[Document]:
+    documents = []
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        code, _, description = line.partition(" - ")
+        documents.append(
+            Document(
+                text=f"ICD-10 {code}: {description}",
+                metadata={
+                    "source_type": "icd10_code",
+                    "source_title": f"ICD-10 {code}",
+                    "icd10_code": code,
+                },
+            )
+        )
+    return documents
+
+
+def load_medical_reference_documents(path: Path) -> list[Document]:
+    sections = path.read_text().strip().split("\n\n")
+    documents = []
+    for section in sections:
+        lines = section.strip().splitlines()
+        if not lines:
+            continue
+        title, body = lines[0].strip(), "\n".join(lines[1:]).strip()
+        documents.append(
+            Document(
+                text=f"{title}\n{body}",
+                metadata={"source_type": "medical_reference", "source_title": title},
+            )
+        )
+    return documents
+
+
 def load_lab_reference_range_documents(path: Path) -> list[Document]:
     documents = []
     with path.open(newline="") as f:

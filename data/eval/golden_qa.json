@@ -1,0 +1,162 @@
+[
+  {
+    "id": "guideline-anticoag-critical-inr",
+    "question": "What INR result indicates a critical bleeding risk requiring urgent clinical assessment?",
+    "source_types": ["guideline"],
+    "expected_source_titles": ["Anticoagulation: INR Monitoring and Drug Interactions"],
+    "required_keywords": ["5.0"],
+    "reference_context": "An INR reference range of 0.8-1.1 describes a patient not on anticoagulation; a critical result above 5.0 indicates a substantially elevated bleeding risk and warrants urgent clinical assessment."
+  },
+  {
+    "id": "guideline-ckd-kidney-failure-egfr",
+    "question": "At what eGFR value does a patient have kidney failure requiring urgent nephrology involvement?",
+    "source_types": ["guideline"],
+    "expected_source_titles": ["Chronic Kidney Disease: Creatinine, eGFR, and Medication Safety"],
+    "required_keywords": ["15"],
+    "reference_context": "A reference eGFR of 90-120 mL/min/1.73m2 is considered normal; sustained values below 60 for three months or more are diagnostic of chronic kidney disease, and values below 15 represent kidney failure requiring urgent nephrology involvement."
+  },
+  {
+    "id": "guideline-diabetes-severe-hypoglycemia",
+    "question": "What glucose value represents clinically significant hypoglycemia requiring urgent attention?",
+    "source_types": ["guideline"],
+    "expected_source_titles": ["Type 2 Diabetes: Glucose and HbA1c Monitoring"],
+    "required_keywords": ["54"],
+    "reference_context": "Glucose values below 70 mg/dL indicate hypoglycemia and should prompt an immediate review of current medications, especially insulin and sulfonylureas. Values below 54 mg/dL represent clinically significant hypoglycemia requiring urgent attention."
+  },
+  {
+    "id": "guideline-hypertension-critical-potassium",
+    "question": "What serum potassium level is a critical result requiring urgent evaluation for arrhythmia risk?",
+    "source_types": ["guideline"],
+    "expected_source_titles": ["Hypertension: Blood Pressure and Electrolyte Monitoring"],
+    "required_keywords": ["6.5"],
+    "reference_context": "Values above 5.5 mmol/L represent hyperkalemia and should prompt medication review; values above 6.5 mmol/L are a critical result requiring urgent evaluation, including consideration of cardiac monitoring, given the risk of life-threatening arrhythmia."
+  },
+  {
+    "id": "drug-warfarin-aspirin",
+    "question": "Is it safe to combine warfarin and aspirin?",
+    "source_types": ["drug_interaction"],
+    "expected_source_titles": ["Warfarin / Aspirin interaction"],
+    "required_keywords": ["bleeding"],
+    "reference_context": "Warfarin + Aspirin (major interaction): Concurrent use significantly increases the risk of bleeding, including gastrointestinal and intracranial hemorrhage. Avoid combination unless benefit clearly outweighs risk; monitor INR closely if co-administered."
+  },
+  {
+    "id": "drug-warfarin-amiodarone",
+    "question": "What happens to warfarin dosing when a patient starts amiodarone?",
+    "source_types": ["drug_interaction"],
+    "expected_source_titles": ["Warfarin / Amiodarone interaction"],
+    "required_keywords": ["one-third"],
+    "reference_context": "Warfarin + Amiodarone (major interaction): Amiodarone inhibits warfarin metabolism, raising INR and bleeding risk. Reduce warfarin dose by roughly one-third to one-half when starting amiodarone and monitor INR frequently."
+  },
+  {
+    "id": "drug-metformin-contrast",
+    "question": "Can metformin be safely combined with iodinated contrast media?",
+    "source_types": ["drug_interaction"],
+    "expected_source_titles": ["Metformin / Contrast media (iodinated) interaction"],
+    "required_keywords": ["lactic acidosis"],
+    "reference_context": "Metformin + Contrast media (iodinated) (major interaction): Iodinated contrast can impair renal function, increasing the risk of metformin-associated lactic acidosis. Hold metformin before and for 48 hours after contrast administration in patients with reduced renal function."
+  },
+  {
+    "id": "drug-simvastatin-clarithromycin",
+    "question": "What is the risk of combining simvastatin with clarithromycin?",
+    "source_types": ["drug_interaction"],
+    "expected_source_titles": ["Simvastatin / Clarithromycin interaction"],
+    "required_keywords": ["rhabdomyolysis"],
+    "reference_context": "Simvastatin + Clarithromycin (major interaction): Clarithromycin strongly inhibits CYP3A4 metabolism of simvastatin, raising myopathy and rhabdomyolysis risk. Avoid combination; suspend simvastatin during clarithromycin therapy."
+  },
+  {
+    "id": "drug-sertraline-tramadol",
+    "question": "What is the concern with combining sertraline and tramadol?",
+    "source_types": ["drug_interaction"],
+    "expected_source_titles": ["Sertraline / Tramadol interaction"],
+    "required_keywords": ["serotonin syndrome"],
+    "reference_context": "Sertraline + Tramadol (major interaction): Combination increases serotonin syndrome risk due to additive serotonergic effects. Use only with caution and close monitoring for agitation, hyperthermia, and clonus."
+  },
+  {
+    "id": "drug-digoxin-furosemide",
+    "question": "Does combining digoxin with furosemide carry any risk?",
+    "source_types": ["drug_interaction"],
+    "expected_source_titles": ["Digoxin / Furosemide interaction"],
+    "required_keywords": ["digoxin toxicity"],
+    "reference_context": "Digoxin + Furosemide (moderate interaction): Furosemide-induced hypokalemia increases the risk of digoxin toxicity. Monitor serum potassium and digoxin levels, particularly after diuretic dose changes."
+  },
+  {
+    "id": "range-potassium-normal",
+    "question": "What is the normal reference range for serum potassium?",
+    "source_types": ["reference_range"],
+    "expected_source_titles": ["Potassium reference range"],
+    "required_keywords": ["3.5", "5.1"],
+    "reference_context": "Potassium (K) reference range: 3.5-5.1 mmol/L. Critical if below 2.5 or above 6.5 mmol/L."
+  },
+  {
+    "id": "range-platelet-critical",
+    "question": "What are the critical thresholds for platelet count?",
+    "source_types": ["reference_range"],
+    "expected_source_titles": ["Platelet Count reference range"],
+    "required_keywords": ["20", "1000"],
+    "reference_context": "Platelet Count (PLT) reference range: 150-450 10^3/uL. Critical if below 20 or above 1000 10^3/uL."
+  },
+  {
+    "id": "range-hemoglobin-normal",
+    "question": "What is the normal reference range for hemoglobin?",
+    "source_types": ["reference_range"],
+    "expected_source_titles": ["Hemoglobin reference range"],
+    "required_keywords": ["12.0", "17.5"],
+    "reference_context": "Hemoglobin (HGB) reference range: 12.0-17.5 g/dL. Critical if below 7.0 or above 20.0 g/dL."
+  },
+  {
+    "id": "range-creatinine-critical",
+    "question": "What creatinine level is considered a critical result?",
+    "source_types": ["reference_range"],
+    "expected_source_titles": ["Creatinine reference range"],
+    "required_keywords": ["4.0"],
+    "reference_context": "Creatinine (CR) reference range: 0.6-1.3 mg/dL. Critical if below  or above 4.0 mg/dL."
+  },
+  {
+    "id": "icd10-diabetes-ckd",
+    "question": "What is the ICD-10 code for type 2 diabetes with diabetic chronic kidney disease?",
+    "source_types": ["icd10_code"],
+    "expected_source_titles": ["ICD-10 E11.22"],
+    "required_keywords": ["E11.22"],
+    "reference_context": "ICD-10 E11.22: Type 2 diabetes mellitus with diabetic chronic kidney disease"
+  },
+  {
+    "id": "icd10-essential-hypertension",
+    "question": "What ICD-10 code represents essential (primary) hypertension?",
+    "source_types": ["icd10_code"],
+    "expected_source_titles": ["ICD-10 I10"],
+    "required_keywords": ["I10"],
+    "reference_context": "ICD-10 I10: Essential (primary) hypertension"
+  },
+  {
+    "id": "icd10-esrd",
+    "question": "What ICD-10 code is used for end stage renal disease?",
+    "source_types": ["icd10_code"],
+    "expected_source_titles": ["ICD-10 N18.6"],
+    "required_keywords": ["N18.6"],
+    "reference_context": "ICD-10 N18.6: End stage renal disease"
+  },
+  {
+    "id": "reference-hba1c-diabetes-cutoff",
+    "question": "What HbA1c value indicates diabetes on two separate tests?",
+    "source_types": ["medical_reference"],
+    "expected_source_titles": ["HbA1c (Glycated Hemoglobin)"],
+    "required_keywords": ["6.5"],
+    "reference_context": "Below 5.7% is normal, 5.7-6.4% indicates prediabetes, and 6.5% or above on two separate tests indicates diabetes."
+  },
+  {
+    "id": "reference-inr-mechanical-valve",
+    "question": "What INR target range is recommended for a patient with a mechanical heart valve?",
+    "source_types": ["medical_reference"],
+    "expected_source_titles": ["INR (International Normalized Ratio)"],
+    "required_keywords": ["2.5-3.5"],
+    "reference_context": "For most anticoagulation indications (atrial fibrillation, venous thromboembolism), the therapeutic target range is 2.0-3.0; mechanical heart valves may require a higher target range of 2.5-3.5."
+  },
+  {
+    "id": "reference-ferritin-iron-deficiency",
+    "question": "Below what ferritin level is iron deficiency likely even with normal hemoglobin?",
+    "source_types": ["medical_reference"],
+    "expected_source_titles": ["Ferritin and Iron Deficiency"],
+    "required_keywords": ["30 ng/mL"],
+    "reference_context": "Levels below 30 ng/mL are highly suggestive of iron deficiency even if hemoglobin is still within the normal range."
+  }
+]

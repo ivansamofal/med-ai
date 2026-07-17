@@ -13,9 +13,11 @@ LangGraph checkpointing pattern shared with the approval graph (Phase 4).
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Annotated
 
 from bson import ObjectId
 from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedState
 from llama_index.core import VectorStoreIndex
 
 from app.agent.redflag import detect_red_flag
@@ -118,9 +120,15 @@ def check_availability(doctor: str, date: str) -> dict:
 
 
 @tool
-def book_appointment(patient_id: str, doctor: str, start_time: str, duration_minutes: int = 30) -> dict:
-    """Book an appointment for `patient_id` with `doctor` at `start_time`
-    (ISO 8601). Fails if the slot is already booked."""
+def book_appointment(
+    doctor: str,
+    start_time: str,
+    duration_minutes: int = 30,
+    *,
+    patient_id: Annotated[str, InjectedState("patient_id")],
+) -> dict:
+    """Book an appointment for the current patient with `doctor` at
+    `start_time` (ISO 8601). Fails if the slot is already booked."""
     start = datetime.fromisoformat(start_time)
     if not is_slot_available(doctor, start):
         return {"status": "conflict", "message": f"{doctor} is not available at {start_time}."}
@@ -135,12 +143,17 @@ def book_appointment(patient_id: str, doctor: str, start_time: str, duration_min
 
 
 @tool
-def reschedule_appointment(appointment_id: str, new_start_time: str) -> dict:
+def reschedule_appointment(
+    appointment_id: str,
+    new_start_time: str,
+    *,
+    patient_id: Annotated[str, InjectedState("patient_id")],
+) -> dict:
     """Move an existing appointment to `new_start_time` (ISO 8601). Fails if
     the new slot is already booked."""
     db = get_sync_database()
     doc = db["appointments"].find_one({"_id": ObjectId(appointment_id)})
-    if doc is None:
+    if doc is None or doc["patient_id"] != patient_id:
         return {"status": "not_found", "message": f"No appointment {appointment_id}."}
 
     new_start = datetime.fromisoformat(new_start_time)
@@ -153,9 +166,19 @@ def reschedule_appointment(appointment_id: str, new_start_time: str) -> dict:
 
 
 @tool
-def cancel_appointment(appointment_id: str, reason: str | None = None) -> dict:
+def cancel_appointment(
+    appointment_id: str,
+    reason: str | None = None,
+    *,
+    patient_id: Annotated[str, InjectedState("patient_id")],
+) -> dict:
     """Cancel an existing appointment."""
-    result = get_sync_database()["appointments"].update_one(
+    db = get_sync_database()
+    doc = db["appointments"].find_one({"_id": ObjectId(appointment_id)})
+    if doc is None or doc["patient_id"] != patient_id:
+        return {"status": "not_found", "message": f"No appointment {appointment_id}."}
+
+    result = db["appointments"].update_one(
         {"_id": ObjectId(appointment_id)}, {"$set": {"status": "cancelled"}}
     )
     if result.matched_count == 0:
@@ -166,8 +189,10 @@ def cancel_appointment(appointment_id: str, reason: str | None = None) -> dict:
 
 
 @tool
-def get_patient_lab_history(patient_id: str) -> dict:
-    """Fetch `patient_id`'s lab results, each grounded with cited
+def get_patient_lab_history(
+    *, patient_id: Annotated[str, InjectedState("patient_id")]
+) -> dict:
+    """Fetch the current patient's lab results, each grounded with cited
     reference-range/guideline context, flagged if any value needs
     escalation."""
     return build_lab_history_context(patient_id)
